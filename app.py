@@ -1,108 +1,134 @@
-
-import os
-from pathlib import Path
-from datetime import date
-from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, send_file
-from apscheduler.schedulers.background import BackgroundScheduler
-
-from spreadsheet_engine import FinanceWorkbook
-from notifier import TelegramNotifier
-
-load_dotenv()
-
-BASE_DIR = Path(__file__).resolve().parent
-WORKBOOK_PATH = BASE_DIR / os.getenv("WORKBOOK_PATH", "financeiro_telegram_premium.xlsx")
+from flask import Flask, request, render_template, jsonify
+import requests
 
 app = Flask(__name__)
-engine = FinanceWorkbook(WORKBOOK_PATH)
-notifier = TelegramNotifier()
-scheduler = BackgroundScheduler()
 
-def reminder_job():
-    body = engine.bills_message(days_ahead=engine.alert_days())
-    if "Nenhuma conta" in body:
-        return
-    notifier.send(body)
+TOKEN = "COLOQUE_SEU_TOKEN_AQUI"
 
-if os.getenv("ENABLE_SCHEDULER", "false").lower() == "true":
-    scheduler.add_job(reminder_job, "cron", hour=int(os.getenv("REMINDER_HOUR", "8")), minute=0, id="daily_bill_reminders", replace_existing=True)
-    scheduler.start()
+DATA = {
+    "receita": 5300,
+    "fixos": {
+        "casa": 732.92,
+        "carro": 1469.70,
+        "condominio": 365,
+        "faculdade": 560,
+    },
+    "variaveis": {
+        "luz": 270,
+        "internet": 220,
+        "combustivel": 320,
+        "cachorro": 140,
+        "assinaturas": 120,
+        "manutencao": 100
+    },
+    "cartao": 0,
+    "reserva": 0,
+    "meta_reserva": 12000
+}
 
-@app.get("/")
-def index():
-    return render_template("index.html")
+def calcular():
+    fixos = sum(DATA["fixos"].values())
+    variaveis = sum(DATA["variaveis"].values())
+    total = fixos + variaveis + DATA["cartao"]
+    saldo = DATA["receita"] - total
 
-@app.get("/download/workbook")
-def download_workbook():
-    return send_file(WORKBOOK_PATH, as_attachment=True)
+    meta = 300 if saldo > 500 else 200
 
-@app.get("/api/health")
-def health():
-    return jsonify({"ok": True, "service": "financeiro-telegram-premium"})
+    return {
+        "fixos": round(fixos,2),
+        "variaveis": round(variaveis,2),
+        "total": round(total,2),
+        "saldo": round(saldo,2),
+        "meta": meta
+    }
 
-@app.get("/api/dashboard")
-def api_dashboard():
-    month = request.args.get("month") or date.today().strftime("%Y-%m")
-    data = engine.month_summary(month)
-    data["bills_due"] = engine.due_bills(days_ahead=7)
-    data["last_launches"] = engine.last_launches(limit=8)
-    return jsonify(data)
+def resposta_status():
+    c = calcular()
+    return f"""
+📊 NEXUS STATUS
 
-@app.get("/api/category/<path:name>")
-def api_category(name):
-    month = request.args.get("month") or date.today().strftime("%Y-%m")
-    return jsonify(engine.category_summary(name, month))
+Receita: R$ {DATA['receita']}
+Fixos: R$ {c['fixos']}
+Variáveis: R$ {c['variaveis']}
+Cartão: R$ {DATA['cartao']}
 
-@app.post("/api/launch")
-def api_launch():
-    payload = request.get_json(force=True, silent=True) or {}
-    category = payload.get("category", "")
-    amount = float(payload.get("amount", 0))
-    description = payload.get("description", "")
-    channel = payload.get("channel", "painel")
-    entry_type = payload.get("entry_type", "gasto")
-    if not category or amount <= 0:
-        return jsonify({"ok": False, "error": "Informe categoria e valor maior que zero."}), 400
-    result = engine.add_launch(category=category, amount=amount, description=description, channel=channel, entry_type=entry_type)
-    return jsonify({"ok": True, "message": result.message, "result": result.__dict__})
+Saldo: R$ {c['saldo']}
 
-@app.post("/api/telegram-test")
-def api_telegram_test():
-    payload = request.get_json(force=True, silent=True) or {}
-    message = payload.get("message", "")
-    reply, data = engine.parse_telegram_message(message)
-    return jsonify({"ok": True, "reply": reply, "data": data})
+🎯 Guardar: R$ {c['meta']}
+"""
 
-@app.get("/api/reminders")
-def api_reminders():
-    days = int(request.args.get("days", engine.alert_days()))
-    bills = engine.due_bills(days_ahead=days)
-    return jsonify({"ok": True, "count": len(bills), "bills": bills})
+def resposta_previsao():
+    c = calcular()
+    return f"""
+📈 PREVISÃO
 
-@app.post("/api/send-reminders")
-def api_send_reminders():
-    days = int((request.get_json(force=True, silent=True) or {}).get("days", engine.alert_days()))
-    body = engine.bills_message(days_ahead=days)
-    result = notifier.send(body)
-    return jsonify({"ok": True, "send_result": result, "body": body})
+Gasto total: R$ {c['total']}
+Saldo final: R$ {c['saldo']}
 
-@app.post("/webhooks/telegram")
-def telegram_webhook():
-    payload = request.get_json(force=True, silent=True) or {}
-    message = payload.get("message") or payload.get("edited_message") or {}
-    text = message.get("text", "")
-    chat = message.get("chat", {}) or {}
-    chat_id = chat.get("id")
-    if not text:
-        return jsonify({"ok": True, "ignored": True})
-    reply, _ = engine.parse_telegram_message(text)
-    if chat_id:
-        notifier.send(reply, chat_id=chat_id)
-    return jsonify({"ok": True, "reply": reply})
+💡 Sugestão:
+Guardar R$ {c['meta']}
+"""
+
+def resposta_meta():
+    return f"""
+🎯 RESERVA
+
+Meta: R$ {DATA['meta_reserva']}
+Atual: R$ {DATA['reserva']}
+
+Foque em guardar todo mês
+"""
+
+def processar(msg):
+    msg = msg.lower()
+
+    if "/status" in msg:
+        return resposta_status()
+
+    if "/previsao" in msg:
+        return resposta_previsao()
+
+    if "/meta" in msg:
+        return resposta_meta()
+
+    if "/cartao" in msg:
+        valor = float(msg.split()[1])
+        DATA["cartao"] = valor
+        return f"💳 Cartão atualizado: R$ {valor}"
+
+    if "/editar" in msg:
+        partes = msg.split()
+        cat = partes[1]
+        valor = float(partes[2])
+        if cat in DATA["variaveis"]:
+            DATA["variaveis"][cat] = valor
+        return f"✏️ {cat} atualizado para R$ {valor}"
+
+    return "Comando não reconhecido"
+
+@app.route('/')
+def dashboard():
+    return render_template("dashboard.html")
+
+@app.route('/api/status')
+def api_status():
+    c = calcular()
+    return jsonify({**c, **DATA})
+
+@app.route('/webhooks/telegram', methods=['POST'])
+def telegram():
+    data = request.get_json()
+    msg = data['message']['text']
+    chat_id = data['message']['chat']['id']
+
+    resposta = processar(msg)
+
+    requests.post(
+        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+        json={"chat_id": chat_id, "text": resposta}
+    )
+
+    return {"ok": True}
 
 if __name__ == "__main__":
-    host = os.getenv("APP_HOST", "0.0.0.0")
-    port = int(os.getenv("APP_PORT", "5000"))
-    debug = os.getenv("APP_DEBUG", "true").lower() == "true"
-    app.run(host=host, port=port, debug=debug)
+    app.run()
