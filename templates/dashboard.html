@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXUS DARK V4</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar glass">
+      <div class="brand">
+        <div class="orb"></div>
+        <div>
+          <h1>NEXUS DARK</h1>
+          <p>Controle, reserva e estratégia</p>
+        </div>
+      </div>
+      <div class="side-card">
+        <h3>Objetivo atual</h3>
+        <p>Pagar contas, controlar gastos e construir reserva.</p>
+      </div>
+      <div class="side-card">
+        <h3>Comandos úteis</h3>
+        <ul>
+          <li>/status</li>
+          <li>/analise</li>
+          <li>/previsao</li>
+          <li>/reserva</li>
+          <li>/editar luz 290</li>
+          <li>gasolina 70</li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <section class="hero glass">
+        <div>
+          <span class="eyebrow">Painel Financeiro Inteligente</span>
+          <h2>Seu centro de comando financeiro</h2>
+          <p>Visual futurista, gráficos, edição rápida e orientação para guardar dinheiro antes de investir.</p>
+        </div>
+        <div id="trafficLight" class="traffic-pill">carregando...</div>
+      </section>
+
+      <section class="kpis">
+        <div class="kpi glass"><span>Receita</span><strong id="incomeKpi">-</strong></div>
+        <div class="kpi glass"><span>Base de contas</span><strong id="baseKpi">-</strong></div>
+        <div class="kpi glass"><span>Gasto lançado</span><strong id="actualKpi">-</strong></div>
+        <div class="kpi glass"><span>Saldo projetado</span><strong id="balanceKpi">-</strong></div>
+        <div class="kpi glass"><span>Guardar no mês</span><strong id="saveKpi">-</strong></div>
+      </section>
+
+      <section class="grid-2">
+        <div class="panel glass chart-panel">
+          <div class="panel-head"><h3>Gastos por categoria</h3></div>
+          <canvas id="categoryChart"></canvas>
+        </div>
+        <div class="panel glass chart-panel">
+          <div class="panel-head"><h3>Evolução mensal</h3></div>
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      </section>
+
+      <section class="grid-3">
+        <div class="panel glass">
+          <div class="panel-head"><h3>Reserva de emergência</h3></div>
+          <div class="progress-wrap">
+            <div class="progress-track"><div id="reserveBar" class="progress-bar"></div></div>
+            <div class="progress-meta">
+              <span id="reserveNow">-</span>
+              <span id="reserveGoal">-</span>
+            </div>
+          </div>
+          <button class="btn" onclick="quickUpdate('monthly_goal', 'meta_guardar')">Atualizar meta mensal</button>
+          <input id="meta_guardar" type="number" step="0.01" placeholder="Ex: 300" />
+        </div>
+        <div class="panel glass">
+          <div class="panel-head"><h3>IA financeira</h3></div>
+          <p id="diagnosisText" class="diagnosis"></p>
+          <ul id="tipsList" class="tips"></ul>
+        </div>
+        <div class="panel glass">
+          <div class="panel-head"><h3>Alertas</h3></div>
+          <ul id="alertsList" class="alerts"></ul>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="panel glass">
+          <div class="panel-head"><h3>Editar custos fixos</h3></div>
+          <div id="fixedEditor" class="editor-list"></div>
+        </div>
+        <div class="panel glass">
+          <div class="panel-head"><h3>Editar limites variáveis</h3></div>
+          <div id="variableEditor" class="editor-list"></div>
+        </div>
+      </section>
+
+      <section class="grid-2">
+        <div class="panel glass">
+          <div class="panel-head"><h3>Lançamento rápido</h3></div>
+          <div class="quick-form">
+            <input id="txCategory" placeholder="Categoria" value="combustivel_moto" />
+            <input id="txAmount" type="number" step="0.01" placeholder="Valor" />
+            <input id="txDesc" placeholder="Descrição" />
+            <button class="btn" onclick="createTransaction()">Lançar</button>
+          </div>
+        </div>
+        <div class="panel glass">
+          <div class="panel-head"><h3>Contas</h3></div>
+          <div id="billsList" class="bills-list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
