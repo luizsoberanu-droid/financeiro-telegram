@@ -1,0 +1,50 @@
+{
+  "config": {
+    "receita_fixa": 5300.0,
+    "receita_extra": 0.0,
+    "meta_reserva": 12000.0,
+    "reserva_atual": 0.0,
+    "modo": "ataque_rigido",
+    "dias_uteis_alerta": 3
+  },
+  "limits": {
+    "lazer": 100.0,
+    "cartao": 200.0,
+    "extras": 100.0,
+    "luz": 300.0,
+    "assinaturas": 120.0,
+    "combustivel_carro": 250.0,
+    "combustivel_moto": 70.0
+  },
+  "fixed_accounts": [
+    {
+      "id": "casa",
+      "nome": "Casa",
+      "valor": 732.92,
+      "vencimento_dia": 10,
+      "categoria": "moradia",
+      "paga": false,
+      "ativa": true
+    }
+  ],
+  "cards": [
+    {
+      "id": "nubank",
+      "nome": "Nubank",
+      "fatura_atual": 1006.05,
+      "vencimento_dia": 12,
+      "limite_ideal": 300.0,
+      "paga": false,
+      "ativa": true
+    }
+  ],
+  "installments": [],
+  "debts": {
+    "negativo": 2999.94,
+    "ipva": 1161.0,
+    "samsung": 134.0,
+    "santander": 996.12,
+    "nubank": 1006.05
+  },
+  "entries": []
+}
