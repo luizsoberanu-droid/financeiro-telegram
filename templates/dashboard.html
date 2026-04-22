@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NEXUS Dark V4.3</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div>
+        <h1>NEXUS DARK V4.3</h1>
+        <p>Modo ataque rígido · sair do negativo · contas em dia · decisão guiada por IA</p>
+      </div>
+      <div class="hero-actions">
+        <button onclick="refreshAll()">Atualizar</button>
+      </div>
+    </header>
+
+    <section class="grid top-grid">
+      <div class="card stat-card"><h3>Receita total</h3><div id="receitaTotal" class="big"></div></div>
+      <div class="card stat-card"><h3>Saldo atual</h3><div id="saldo" class="big"></div></div>
+      <div class="card stat-card"><h3>Dívida total</h3><div id="divida" class="big danger"></div></div>
+      <div class="card stat-card"><h3>Meta mensal dívida</h3><div id="metaDivida" class="big warn"></div></div>
+    </section>
+
+    <section class="grid middle-grid">
+      <div class="card chart-card">
+        <h3>Gastos por categoria no mês</h3>
+        <canvas id="catChart"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>Semáforo financeiro</h3>
+        <div id="semaforo" class="semaforo"></div>
+        <div id="analiseText" class="analysis-box"></div>
+      </div>
+    </section>
+
+    <section class="grid lower-grid">
+      <div class="card">
+        <h3>Campos editáveis</h3>
+        <div class="edit-grid" id="editGrid"></div>
+      </div>
+      <div class="card">
+        <h3>Lançamento rápido</h3>
+        <div class="quick-form">
+          <input id="desc" placeholder="Descrição, ex: lanche">
+          <input id="valor" placeholder="Valor, ex: 25">
+          <button onclick="createLaunch()">Lançar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid lower-grid">
+      <div class="card">
+        <h3>Contas próximas do vencimento</h3>
+        <div id="contasBox"></div>
+      </div>
+      <div class="card">
+        <h3>Resumo por categoria</h3>
+        <div id="catBox"></div>
+      </div>
+    </section>
+
+    <section class="card full-width">
+      <h3>Detalhamento do mês atual</h3>
+      <div id="monthDetail"></div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
