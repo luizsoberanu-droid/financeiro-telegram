@@ -1,0 +1,142 @@
+{
+  "config": {
+    "receita_fixa": 5300.0,
+    "receita_extra": 0.0,
+    "meta_reserva": 12000.0,
+    "reserva_atual": 0.0,
+    "modo": "ataque_rigido",
+    "dias_uteis_alerta": 3
+  },
+  "limits": {
+    "lazer": 100.0,
+    "cartao": 200.0,
+    "extras": 100.0,
+    "luz": 300.0,
+    "assinaturas": 120.0,
+    "combustivel_carro": 250.0,
+    "combustivel_moto": 70.0
+  },
+  "fixed_accounts": [
+    {
+      "id": "casa",
+      "nome": "Casa",
+      "valor": 732.92,
+      "vencimento_dia": 10,
+      "categoria": "moradia",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "carro",
+      "nome": "Carro",
+      "valor": 1469.7,
+      "vencimento_dia": 5,
+      "categoria": "financiamento",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "condominio",
+      "nome": "Condomínio",
+      "valor": 365.0,
+      "vencimento_dia": 12,
+      "categoria": "moradia",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "faculdade_usuario",
+      "nome": "Faculdade usuário",
+      "valor": 360.0,
+      "vencimento_dia": 7,
+      "categoria": "educacao",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "faculdade_esposa",
+      "nome": "Faculdade esposa",
+      "valor": 200.0,
+      "vencimento_dia": 7,
+      "categoria": "educacao",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "internet",
+      "nome": "Internet e redes móveis",
+      "valor": 220.0,
+      "vencimento_dia": 15,
+      "categoria": "servicos",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "luz",
+      "nome": "Luz",
+      "valor": 270.0,
+      "vencimento_dia": 25,
+      "categoria": "servicos",
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "ipva",
+      "nome": "IPVA",
+      "valor": 1161.0,
+      "vencimento_dia": 10,
+      "categoria": "imposto",
+      "paga": false,
+      "ativa": true
+    }
+  ],
+  "cards": [
+    {
+      "id": "nubank",
+      "nome": "Nubank",
+      "fatura_atual": 1006.05,
+      "vencimento_dia": 12,
+      "limite_ideal": 300.0,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "santander",
+      "nome": "Santander",
+      "fatura_atual": 996.12,
+      "vencimento_dia": 18,
+      "limite_ideal": 300.0,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "samsung",
+      "nome": "Samsung",
+      "fatura_atual": 134.0,
+      "vencimento_dia": 25,
+      "limite_ideal": 150.0,
+      "paga": false,
+      "ativa": true
+    }
+  ],
+  "installments": [
+    {
+      "id": "parc_samsung_tv",
+      "descricao": "TV Samsung",
+      "cartao_id": "samsung",
+      "valor_parcela": 134.0,
+      "parcela_atual": 3,
+      "total_parcelas": 10,
+      "vencimento_dia": 25,
+      "ativa": true
+    }
+  ],
+  "debts": {
+    "negativo": 2999.94,
+    "ipva": 1161.0,
+    "samsung": 134.0,
+    "santander": 996.12,
+    "nubank": 1006.05
+  },
+  "entries": []
+}
