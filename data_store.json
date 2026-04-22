@@ -1,0 +1,86 @@
+{
+  "config": {
+    "receita_fixa": 5300.0,
+    "receita_extra": 0.0,
+    "meta_reserva": 12000.0,
+    "reserva_atual": 0.0,
+    "modo": "ataque_rigido",
+    "dias_uteis_alerta": 3
+  },
+  "limits": {
+    "lazer": 100.0,
+    "cartao": 200.0,
+    "extras": 100.0,
+    "luz": 300.0,
+    "assinaturas": 120.0,
+    "combustivel_carro": 250.0,
+    "combustivel_moto": 70.0
+  },
+  "fixed_accounts": [
+    {
+      "id": "casa",
+      "nome": "Casa",
+      "valor": 732.92,
+      "vencimento_dia": 10,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "carro",
+      "nome": "Carro",
+      "valor": 1469.7,
+      "vencimento_dia": 5,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "condominio",
+      "nome": "Condomínio",
+      "valor": 365.0,
+      "vencimento_dia": 12,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "faculdade_usuario",
+      "nome": "Faculdade usuário",
+      "valor": 360.0,
+      "vencimento_dia": 7,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "faculdade_esposa",
+      "nome": "Faculdade esposa",
+      "valor": 200.0,
+      "vencimento_dia": 7,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "internet",
+      "nome": "Internet e redes móveis",
+      "valor": 220.0,
+      "vencimento_dia": 15,
+      "paga": false,
+      "ativa": true
+    },
+    {
+      "id": "ipva",
+      "nome": "IPVA",
+      "valor": 1161.0,
+      "vencimento_dia": 10,
+      "paga": false,
+      "ativa": true
+    }
+  ],
+  "debts": {
+    "negativo": 2999.94,
+    "ipva": 1161.0,
+    "samsung": 134.0,
+    "santander": 996.12,
+    "nubank": 1006.05
+  },
+  "entries": [],
+  "reminders_log": []
+}
