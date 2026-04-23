@@ -360,10 +360,10 @@ def api_testar_alertas():
 
         from services.alert_service import telegram_send
         telegram_send(
-            chat_id,
-            "🧪 Teste de alerta do NEXUS AI!\n\n"
-            "Se você recebeu esta mensagem, os alertas automáticos estão configurados corretamente."
-        )
+    chat_id,
+    "🧪 Teste de alerta do NEXUS AI!\n\n"
+    "Se você recebeu esta mensagem, os alertas automáticos estão configurados corretamente."
+)
 
         return jsonify({"ok": True, "mensagem": "Alerta de teste enviado!"})
     finally:
