@@ -1,0 +1,88 @@
+{
+  "receita_fixa": 5300,
+  "receita_extra": 0,
+  "reserva_atual": 0,
+  "reserva_meta": 12000,
+  "contas": [
+    {
+      "nome": "casa",
+      "valor": 732.92,
+      "vencimento": 10,
+      "pago": false
+    },
+    {
+      "nome": "carro",
+      "valor": 1469.7,
+      "vencimento": 15,
+      "pago": false
+    },
+    {
+      "nome": "condominio",
+      "valor": 365,
+      "vencimento": 5,
+      "pago": false
+    },
+    {
+      "nome": "faculdade",
+      "valor": 360,
+      "vencimento": 20,
+      "pago": false
+    },
+    {
+      "nome": "faculdade_esposa",
+      "valor": 200,
+      "vencimento": 20,
+      "pago": false
+    },
+    {
+      "nome": "internet",
+      "valor": 220,
+      "vencimento": 15,
+      "pago": false
+    },
+    {
+      "nome": "luz",
+      "valor": 270,
+      "vencimento": 25,
+      "pago": false
+    },
+    {
+      "nome": "ipva",
+      "valor": 1161,
+      "vencimento": 10,
+      "pago": false
+    }
+  ],
+  "cartoes": [
+    {
+      "nome": "samsung",
+      "vencimento": 15,
+      "melhor_dia_compra": 11
+    },
+    {
+      "nome": "santander",
+      "vencimento": 15,
+      "melhor_dia_compra": 11
+    },
+    {
+      "nome": "nubank",
+      "vencimento": 1,
+      "melhor_dia_compra": 30
+    }
+  ],
+  "lancamentos": [],
+  "parcelas": [],
+  "limites": {
+    "lazer": 100,
+    "extras": 100,
+    "combustivel": 320
+  },
+  "dividas": {
+    "negativo": 2999.94,
+    "ipva": 1161,
+    "samsung": 134,
+    "santander": 996.12,
+    "nubank": 1006.05
+  },
+  "telegram_sessions": {}
+}
