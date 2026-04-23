@@ -242,8 +242,12 @@ tr:nth-child(even) {{ background: #f8f9fa; }}
 <tr><th>Conta</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr>
 """
         for c in contas:
-            html += f"<tr><td>{c.nome}</td><td>R$ {c.valor:.2f}</td><td>Dia {c.vencimento}</td><td>{'✅ Paga' if c.pago else '⏳ Aberta'}</td></tr>
-"
+         html += (
+    f"<tr><td>{c.nome}</td>"
+    f"<td>R$ {c.valor:.2f}</td>"
+    f"<td>Dia {c.vencimento}</td>"
+    f"<td>{'✅ Paga' if c.pago else '⏳ Aberta'}</td></tr>"
+)
 
         html += "</table>
 "
