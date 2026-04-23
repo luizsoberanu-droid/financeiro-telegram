@@ -1,0 +1,8 @@
+flask
+gunicorn
+requests
+openai
+sqlalchemy
+python-dotenv
+reportlab
+apscheduler
