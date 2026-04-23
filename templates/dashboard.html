@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS AI - Painel Financeiro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header {
+            text-align: center;
+            padding: 40px 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            margin-bottom: 30px;
+        }
+        header h1 { font-size: 3em; background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        header p { color: #888; margin-top: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 10px 40px rgba(0,212,255,0.1); }
+        .card h3 { color: #00d4ff; margin-bottom: 15px; font-size: 1.1em; text-transform: uppercase; letter-spacing: 1px; }
+        .value { font-size: 2.2em; font-weight: bold; margin: 10px 0; }
+        .positive { color: #00ff88; }
+        .negative { color: #ff4757; }
+        .warning { color: #ffa502; }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .status-recuperacao { background: rgba(255,71,87,0.2); color: #ff4757; }
+        .status-reserva { background: rgba(255,165,2,0.2); color: #ffa502; }
+        .status-crescimento { background: rgba(0,255,136,0.2); color: #00ff88; }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        .commands {
+            background: rgba(0,0,0,0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 30px;
+        }
+        .commands h3 { color: #00d4ff; margin-bottom: 15px; }
+        .command-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+        .cmd-item {
+            background: rgba(255,255,255,0.05);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .cmd-item code { color: #00d4ff; }
+        .setup {
+            background: rgba(0,212,255,0.05);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 30px;
+        }
+        .setup h3 { color: #00d4ff; margin-bottom: 15px; }
+        .setup a { color: #00d4ff; }
+        footer {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 NEXUS AI</h1>
+            <p>Assistente Financeiro com Inteligência Artificial Real</p>
+            <p style="margin-top:5px;font-size:0.9em;color:#666">v2.0 | 100% Gratuito | Function Calling | SQLite</p>
+        </header>
+
+        <div class="grid" id="dashboard">
+            <div class="card">
+                <h3>💰 Saldo Projetado</h3>
+                <div class="value positive" id="saldo">Carregando...</div>
+                <p>Após contas e gastos do mês</p>
+            </div>
+            <div class="card">
+                <h3>💳 Dívida Total</h3>
+                <div class="value negative" id="divida">Carregando...</div>
+                <p>Próximo: <span id="proxima-divida">-</span></p>
+            </div>
+            <div class="card">
+                <h3>🏦 Reserva de Emergência</h3>
+                <div class="value" id="reserva">Carregando...</div>
+                <div class="progress-bar"><div class="progress-fill" id="reserva-bar" style="width:0%"></div></div>
+                <p>Meta: R$ 12.000,00</p>
+            </div>
+            <div class="card">
+                <h3>📊 Modo de Operação</h3>
+                <div class="value warning" id="modo">Carregando...</div>
+                <span class="status-badge" id="status-badge">Analisando...</span>
+            </div>
+        </div>
+
+        <div class="commands">
+            <h3>🤖 Comandos do Telegram</h3>
+            <div class="command-list">
+                <div class="cmd-item"><code>status</code> → Ver situação financeira</div>
+                <div class="cmd-item"><code>contas</code> → Listar contas fixas</div>
+                <div class="cmd-item"><code>dividas</code> → Ver dívidas detalhadas</div>
+                <div class="cmd-item"><code>reserva</code> → Status da reserva</div>
+                <div class="cmd-item"><code>plano</code> → Plano mensal completo</div>
+                <div class="cmd-item"><code>alertas</code> → Verificar alertas</div>
+                <div class="cmd-item"><code>pagar [nome]</code> → Marcar conta paga</div>
+                <div class="cmd-item"><code>extra [valor]</code> → Registrar renda extra</div>
+                <div class="cmd-item"><code>[desc] [valor]</code> → Lançar gasto rápido</div>
+                <div class="cmd-item"><code>qualquer texto</code> → IA analisa e responde!</div>
+            </div>
+        </div>
+
+        <div class="setup">
+            <h3>⚙️ Configuração no Render (Variáveis de Ambiente)</h3>
+            <p><b>GROQ_API_KEY</b> → Cadastre em <a href="https://console.groq.com" target="_blank">console.groq.com</a> (grátis, sem cartão de crédito)</p>
+            <p><b>GOOGLE_API_KEY</b> → Alternativa: <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> (grátis)</p>
+            <p><b>TELEGRAM_BOT_TOKEN</b> → Obtenha com @BotFather no Telegram</p>
+            <p style="margin-top:10px;color:#888">Sem API key, o sistema funciona em modo fallback com regras básicas.</p>
+        </div>
+
+        <footer>
+            <p>NEXUS AI v2.0 | Desenvolvido com ❤️ | 100% Open Source</p>
+        </footer>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                document.getElementById('saldo').textContent = 'R$ ' + data.saldo_projetado.toFixed(2).replace('.', ',');
+                document.getElementById('saldo').className = 'value ' + (data.saldo_projetado >= 0 ? 'positive' : 'negative');
+
+                const divRes = await fetch('/api/dividas');
+                const divData = await divRes.json();
+                document.getElementById('divida').textContent = 'R$ ' + divData.total_divida.toFixed(2).replace('.', ',');
+                if (divData.detalhes.length > 0) {
+                    document.getElementById('proxima-divida').textContent = divData.detalhes[0].nome + ' (R$ ' + divData.detalhes[0].valor.toFixed(2).replace('.', ',') + ')';
+                }
+
+                const resRes = await fetch('/api/reserva');
+                const resData = await resRes.json();
+                document.getElementById('reserva').textContent = resData.percentual.toFixed(1) + '%';
+                document.getElementById('reserva-bar').style.width = Math.min(resData.percentual, 100) + '%';
+
+                document.getElementById('modo').textContent = data.modo_atual.toUpperCase();
+                const badge = document.getElementById('status-badge');
+                badge.textContent = data.modo_atual === 'recuperacao' ? '⚠️ FOCO EM DÍVIDAS' : data.modo_atual === 'reserva' ? '🏦 CONSTRUINDO RESERVA' : '🚀 CRESCIMENTO';
+                badge.className = 'status-badge status-' + data.modo_atual;
+            } catch(e) {
+                console.error('Erro ao carregar dados:', e);
+            }
+        }
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>
