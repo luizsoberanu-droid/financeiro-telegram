@@ -69,18 +69,18 @@ class AlertService:
 
             if dias_uteis in [1, 2, 3]:
                 emoji = "🚨" if dias_uteis == 1 else "⚠️"
-                msg = (
-                    f"{emoji} ALERTA DE VENCIMENTO
-"
-                    f"Conta: {c.nome.upper()}
-"
-                    f"Valor: R$ {c.valor:.2f}
-"
-                    f"Vence em: {dias_uteis} {'dia útil' if dias_uteis == 1 else 'dias úteis'}
-"
-                    f"📅 Data: {venc.strftime('%d/%m/%Y')}
+                mensagem = (
+                    f"{emoji} ALERTA DE VENCIMENTO"\n\n
 
-"
+                    f"Conta: {c.nome.upper()}"\n
+
+                    f"Valor: R$ {c.valor:.2f}"\n
+
+                    f"Vence em: {dias_uteis} {'dia útil' if dias_uteis == 1 else 'dias úteis'}"\n
+
+                    f"📅 Data: {venc.strftime('%d/%m/%Y')}"\n
+
+
                     f"Não deixe atrasar!"
                 )
                 telegram_send(chat_id, msg)
