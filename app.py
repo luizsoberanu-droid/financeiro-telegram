@@ -7,15 +7,22 @@ import os
 
 app = Flask(__name__)
 
-# Inicializar banco de dados
-init_db()
+# Inicializar banco de dados com proteção contra erros
+try:
+    init_db()
+except Exception as e:
+    print(f"⚠️ Aviso: erro ao inicializar banco de dados: {e}")
 
 # Registrar blueprints
 app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(telegram_bp)
 
-# Iniciar cron jobs para alertas automáticos
-cron_scheduler = iniciar_cron_jobs(app)
+# Iniciar cron jobs com proteção contra erros
+try:
+    cron_scheduler = iniciar_cron_jobs(app)
+except Exception as e:
+    print(f"⚠️ Aviso: erro ao iniciar cron jobs: {e}")
+    cron_scheduler = None
 
 @app.route("/")
 def home():
