@@ -559,6 +559,16 @@ def api_salvamento_status():
     finally:
         db.close()
 
+@api_bp.route('/apontamentos')
+def api_apontamentos():
+    db = get_db_session()
+    try:
+        limite = int(request.args.get("limite", 20))
+        from services.autosave_service import AutosaveService
+        return jsonify({"ok": True, "apontamentos": AutosaveService(db).recentes(limite)})
+    finally:
+        db.close()
+
 @api_bp.route('/salvamento/google_sheets', methods=['POST'])
 def api_salvamento_google_sheets():
     db = get_db_session()

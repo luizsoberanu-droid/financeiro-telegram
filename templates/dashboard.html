@@ -930,6 +930,16 @@
                     Use o app no dia a dia, salve no Google Sheets quando fizer mudancas importantes e baixe um snapshot JSON no fechamento de cada mes. Assim voce fica com tres camadas: uso rapido, backup online e copia pessoal.
                 </p>
             </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3>Apontamentos salvos automaticamente</h3>
+                <div class="table-container">
+                    <table id="tabela-apontamentos">
+                        <thead><tr><th>Data</th><th>Origem</th><th>Entidade</th><th>Resumo</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <!-- SECTION: CONFIGURAÇÕES -->
@@ -1598,6 +1608,25 @@ async function deleteDesejo(id) {
                 linhas.push('<div style="margin-top:14px;color:var(--text-dim);">Tabelas: ' + Object.keys(res.tabelas).map(function(k) { return k + ' (' + res.tabelas[k] + ')'; }).join(', ') + '</div>');
             }
             el.innerHTML = linhas.join('');
+            await loadApontamentos();
+        }
+
+        async function loadApontamentos() {
+            var res = await api('/api/apontamentos?limite=12');
+            var tbody = document.querySelector('#tabela-apontamentos tbody');
+            if (!tbody) return;
+            if (!res || !res.apontamentos || !res.apontamentos.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#888">Nenhum apontamento automatico ainda</td></tr>';
+                return;
+            }
+            tbody.innerHTML = res.apontamentos.map(function(a) {
+                return '<tr>' +
+                    '<td>' + fmtDate(a.created_at) + '</td>' +
+                    '<td>' + a.origem + '</td>' +
+                    '<td>' + a.entidade + '</td>' +
+                    '<td>' + a.resumo + '</td>' +
+                '</tr>';
+            }).join('');
         }
 
         async function salvarGoogleSheets() {

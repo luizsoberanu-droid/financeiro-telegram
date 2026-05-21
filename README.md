@@ -228,12 +228,14 @@ Novidades desta melhoria:
   - SQLite para uso diario.
   - Google Sheets como espelho permanente.
   - Snapshot JSON portatil para guardar fora do app.
+- Autosave de apontamentos: cada operacao importante `POST/PUT/DELETE` vira um registro na tabela `apontamentos`, com origem, entidade, resumo e data.
 
 Novos endpoints:
 - `GET /api/alimentacao`
 - `POST /api/alimentacao/config`
 - `POST /api/alimentacao/movimento`
 - `GET /api/salvamento/status`
+- `GET /api/apontamentos`
 - `POST /api/salvamento/google_sheets`
 - `POST /api/salvamento/restaurar_google_sheets`
 - `GET /api/salvamento/snapshot`

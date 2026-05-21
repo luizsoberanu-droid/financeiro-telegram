@@ -12,6 +12,7 @@ class SaveVaultService:
     def models(self):
         from models.database import (
             Alerta,
+            Apontamento,
             Cartao,
             CartaoAlimentacao,
             Config,
@@ -28,6 +29,7 @@ class SaveVaultService:
 
         return [
             ("config", Config),
+            ("apontamentos", Apontamento),
             ("contas_fixas", ContaFixa),
             ("cartoes", Cartao),
             ("cartao_alimentacao", CartaoAlimentacao),

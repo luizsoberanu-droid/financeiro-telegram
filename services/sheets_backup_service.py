@@ -4,6 +4,7 @@ from datetime import datetime
 
 SHEET_TABLES = [
     "config",
+    "apontamentos",
     "contas_fixas",
     "cartoes",
     "cartao_alimentacao",
@@ -37,11 +38,12 @@ class SheetsBackupService:
 
     def _models(self):
         from models.database import (
-            Config, ContaFixa, Cartao, CartaoAlimentacao, Divida, Limite,
+            Apontamento, Config, ContaFixa, Cartao, CartaoAlimentacao, Divida, Limite,
             Lancamento, MovimentoAlimentacao, Parcela, ResumoMensal
         )
         models = {
             "config": Config,
+            "apontamentos": Apontamento,
             "contas_fixas": ContaFixa,
             "cartoes": Cartao,
             "cartao_alimentacao": CartaoAlimentacao,

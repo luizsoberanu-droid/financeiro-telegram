@@ -64,6 +64,20 @@ class MovimentoAlimentacao(Base):
     saldo_apos = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class Apontamento(Base):
+    __tablename__ = 'apontamentos'
+    id = Column(Integer, primary_key=True)
+    origem = Column(String, default="api")
+    metodo = Column(String, nullable=False)
+    caminho = Column(String, nullable=False)
+    entidade = Column(String, default="geral")
+    acao = Column(String, default="alteracao")
+    resumo = Column(String, nullable=False)
+    payload = Column(Text, nullable=True)
+    status_code = Column(Integer, default=200)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class Divida(Base):
     __tablename__ = 'dividas'
     id = Column(Integer, primary_key=True)

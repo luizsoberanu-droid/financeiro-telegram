@@ -47,7 +47,22 @@ except Exception as e:
 
 @app.after_request
 def backup_google_sheets_after_mutation(response):
-    """Backup automático após alterações, sem afetar o painel se falhar."""
+    """Autosave e backup automatico apos alteracoes, sem afetar o painel se falhar."""
+    try:
+        if request.method in ["POST", "PUT", "DELETE"] and (
+            request.path.startswith("/api/") or request.path.startswith("/webhooks/")
+        ):
+            from models.database import SessionLocal
+            from services.autosave_service import AutosaveService
+
+            db_auto = SessionLocal()
+            try:
+                AutosaveService(db_auto).registrar_request(request, response)
+            finally:
+                db_auto.close()
+    except Exception as e:
+        print(f"Aviso: autosave de apontamento falhou sem bloquear app: {e}")
+
     try:
         if request.method in ["POST", "PUT", "DELETE"] and (
             request.path.startswith("/api/") or request.path.startswith("/webhooks/")
