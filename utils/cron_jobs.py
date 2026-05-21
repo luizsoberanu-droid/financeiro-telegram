@@ -61,12 +61,24 @@ def iniciar_cron_jobs(app):
         replace_existing=True
     )
 
+    telegram_automations = os.getenv("TELEGRAM_AUTOMATIONS_ENABLED", "false").lower() in ["true", "1", "sim", "yes"]
+    if not telegram_automations:
+        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas"]:
+            try:
+                scheduler.remove_job(job_id)
+            except Exception:
+                pass
+
     scheduler.start()
     print("✅ Cron jobs iniciados:")
-    print("   • Alertas diários: 9h")
-    print("   • Alertas vencimento: 8h")
-    print("   • Relatório mensal: último dia do mês às 20h")
-    print("   • Check-up dívidas: domingo às 10h")
+    print("   • Histórico mensal: 23h55")
+    print("   • Ping do app: a cada 5 minutos se SELF_URL estiver configurada")
+    if telegram_automations:
+        print("   • Alertas diários: 9h")
+        print("   • Alertas vencimento: 8h")
+        print("   • Relatório mensal: último dia do mês às 20h")
+        print("   • Check-up dívidas: domingo às 10h")
+    print("   Automações Telegram: " + ("ligadas" if telegram_automations else "desligadas"))
     return scheduler
 
 def enviar_alertas_diarios(app):

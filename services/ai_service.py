@@ -1,6 +1,8 @@
 import os
 import json
 import calendar
+import re
+import unicodedata
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
@@ -120,6 +122,63 @@ TOOLS = [
             "description": "Retorna saldo, recarga mensal, dias ate recarga, status e sugestao de uso do cartao alimentacao.",
             "parameters": {"type": "object", "properties": {}}
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_visao_patrimonial",
+            "description": "Retorna diagnostico patrimonial com renda, saldo, divida, reserva, capacidade mensal e fase financeira.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "planejar_meta_patrimonial",
+            "description": "Simula quanto guardar por mes para atingir uma meta grande, como entrada de casa, independencia financeira ou patrimonio alvo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "valor_meta": {"type": "number", "description": "Valor alvo em reais"},
+                    "prazo_anos": {"type": "number", "description": "Prazo desejado em anos"},
+                    "retorno_anual_pct": {"type": "number", "description": "Retorno anual realista estimado em percentual. Use 6 se o usuario nao informar."}
+                },
+                "required": ["valor_meta", "prazo_anos"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analisar_compra_parcelada",
+            "description": "Analisa se uma compra a vista ou parcelada cabe no cartao considerando renda, saldo, dividas, parcelas atuais e lista de desejos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "produto": {"type": "string", "description": "Nome do produto ou desejo"},
+                    "valor": {"type": "number", "description": "Valor total do produto em reais"},
+                    "parcelas": {"type": "integer", "description": "Quantidade de parcelas desejada"}
+                },
+                "required": ["produto", "valor"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_radar_mercado",
+            "description": "Consulta um radar atual de mercado com indices, dolar, ETFs e acoes brasileiras grandes para apoiar conversa de investimentos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tickers": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tickers opcionais do Yahoo Finance. Ex: PETR4.SA, VALE3.SA, IVVB11.SA"
+                    }
+                }
+            }
+        }
     }
 ]
 
@@ -127,7 +186,7 @@ TOOLS = [
 # SYSTEM PROMPT
 # =========================
 
-SYSTEM_PROMPT = """Voce e o NEXUS, um analista financeiro pessoal de elite com 20 anos de experiencia. Voce e a versao brasileira do maior especialista em financas pessoais do mundo.
+SYSTEM_PROMPT = """Voce e o NEXUS, analista patrimonial e estrategista financeiro particular do usuario. Sua missao e controlar a renda, proteger contra decisoes ruins e construir prosperidade real no longo prazo.
 
 🎭 SUA PERSONALIDADE:
 • Direto, sem rodeios, mas sempre empatico e humano
@@ -143,7 +202,7 @@ SYSTEM_PROMPT = """Voce e o NEXUS, um analista financeiro pessoal de elite com 2
 1. NUNCA recomende gasto se o saldo projetado ficar negativo
 2. Em modo "recuperacao", seja RIGOROSO. Cada real gasto prolonga a divida.
 3. Em modo "reserva", incentive poupanca disciplinada e controle
-4. Em modo "crescimento", sugira investimentos conservadores e metas
+4. Em modo "crescimento", crie estrategia de acumulacao patrimonial, renda, reserva e investimento
 5. Sempre cite numeros especificos (R$ X, Y dias, Z%)
 6. Se nao souber algo, USE as ferramentas disponiveis
 7. NUNCA invente dados. Sempre consulte as ferramentas.
@@ -151,6 +210,10 @@ SYSTEM_PROMPT = """Voce e o NEXUS, um analista financeiro pessoal de elite com 2
 9. Use linguagem simples, evite jargoes financeiros complexos
 10. Termine com uma ACAO CONCRETA para o proximo passo
 11. Quando o assunto for mercado, comida, almoco ou refeicao, considere tambem o saldo do cartao alimentacao.
+12. Para investimentos, explique risco, prazo, diversificacao e liquidez. NUNCA prometa retorno garantido.
+13. Quando falar de acoes, fundos ou ETFs, use o radar de mercado quando possivel e trate como lista de estudo, nao ordem de compra.
+14. Para metas grandes, como casa de R$ 1.000.000, transforme sonho em plano: entrada, prazo, aporte mensal, renda necessaria e cortes.
+15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar.
 
 📊 FORMATO DE RESPOSTA:
 • Comece com a DECISAO direta (SIM / NAO / TALVEZ)
@@ -162,7 +225,7 @@ SYSTEM_PROMPT = """Voce e o NEXUS, um analista financeiro pessoal de elite com 2
 ❌ Ruim: "Nao e recomendavel gastar R$ 200 em lazer."
 ✅ Bom: "Cara, entendo que voce quer curtir, mas olha so: seu saldo projetado e R$ 1.247 e voce tem R$ 2.800 em contas pra pagar. Se gastar esses R$ 200, voce fica R$ 1.753 no vermelho antes do fim do mes. Que tal um programa em casa por R$ 50? Faz um lanche especial, coloca um filme. Sua esposa vai valorizar o esforco! 🎬"
 
-Lembre-se: voce e o conselheiro financeiro que todo mundo gostaria de ter. Seja honesto, mas gentil. Seja direto, mas compreensivo."""
+Lembre-se: voce e a alavanca financeira do usuario. Seja honesto, estrategico e controlador do risco. Ajude a enriquecer sem iludir."""
 
 # =========================
 # FUNCOES DE NEGOCIO
@@ -447,6 +510,143 @@ class FinancialTools:
         from services.benefit_service import BenefitCardService
         return BenefitCardService(self.db).resumo()
 
+    def get_visao_patrimonial(self):
+        saldo = self.get_saldo_atual()
+        dividas = self.get_analise_dividas()
+        reserva = self.get_reserva_status()
+        plano = self.get_plano_mensal()
+
+        sobra = max(saldo.get("saldo_projetado", 0), 0)
+        aporte_sugerido = round(sobra * 0.7, 2)
+
+        if dividas.get("total_divida", 0) > 0:
+            fase = "eliminar_dividas"
+            foco = "Quitar dividas antes de acelerar investimentos."
+        elif reserva.get("faltante", 0) > 0:
+            fase = "montar_reserva"
+            foco = "Formar reserva antes de assumir risco maior."
+        else:
+            fase = "crescimento"
+            foco = "Investir com diversificacao, prazo e controle de risco."
+
+        return {
+            "receita_total": saldo.get("receita_total", 0),
+            "saldo_projetado": saldo.get("saldo_projetado", 0),
+            "divida_total": dividas.get("total_divida", 0),
+            "reserva_atual": reserva.get("atual", 0),
+            "meta_reserva": reserva.get("meta", 0),
+            "fase": fase,
+            "foco": foco,
+            "aporte_mensal_sugerido": aporte_sugerido,
+            "ordem_de_prioridade": [
+                "1. Nao atrasar contas essenciais",
+                "2. Quitar dividas caras",
+                "3. Montar reserva de emergencia",
+                "4. Investir para metas grandes",
+                "5. Liberar desejos somente se nao atrasarem a meta",
+            ],
+            "acoes_recomendadas": plano.get("acoes_recomendadas", []),
+        }
+
+    def planejar_meta_patrimonial(self, valor_meta: float, prazo_anos: float, retorno_anual_pct: float = 6):
+        visao = self.get_visao_patrimonial()
+        valor_meta = max(float(valor_meta or 0), 0)
+        prazo_anos = max(float(prazo_anos or 0), 0.1)
+        retorno_anual_pct = float(retorno_anual_pct if retorno_anual_pct is not None else 6)
+
+        meses = int(round(prazo_anos * 12))
+        taxa_mensal = ((1 + retorno_anual_pct / 100) ** (1 / 12)) - 1
+        if taxa_mensal > 0:
+            aporte_necessario = valor_meta / (((1 + taxa_mensal) ** meses - 1) / taxa_mensal)
+        else:
+            aporte_necessario = valor_meta / meses
+
+        capacidade = visao.get("aporte_mensal_sugerido", 0)
+        gap = aporte_necessario - capacidade
+
+        return {
+            "valor_meta": round(valor_meta, 2),
+            "prazo_anos": prazo_anos,
+            "meses": meses,
+            "retorno_anual_estimado_pct": retorno_anual_pct,
+            "aporte_mensal_necessario": round(aporte_necessario, 2),
+            "aporte_mensal_sugerido_pelo_orcamento": round(capacidade, 2),
+            "gap_mensal": round(gap, 2),
+            "meta_cabe_no_orcamento_atual": gap <= 0,
+            "leitura": "Meta viavel no ritmo atual." if gap <= 0 else "Meta exige aumentar renda, reduzir custo, alongar prazo ou reduzir valor alvo.",
+            "observacao": "Simulacao nao garante retorno. Use como mapa de disciplina, nao promessa.",
+        }
+
+    def analisar_compra_parcelada(self, produto: str, valor: float, parcelas: int = 1):
+        from models.database import Desejo, Lancamento, Parcela
+        from services.wishlist_advisor_service import classificar_prioridade, explicar_prioridade
+
+        produto = (produto or "produto").strip()
+        valor = round(float(valor or 0), 2)
+        parcelas = max(int(parcelas or 1), 1)
+        valor_parcela = round(valor / parcelas, 2) if parcelas else valor
+
+        saldo = self.get_saldo_atual()
+        dividas = self.get_analise_dividas()
+        prioridade = classificar_prioridade(produto)
+        motivo_prioridade = explicar_prioridade(produto, prioridade)
+
+        mes_atual = datetime.now().strftime("%Y-%m")
+        parcelas_mes = sum(p.valor for p in self.db.query(Parcela).filter(Parcela.mes_ref == mes_atual).all())
+        cartao_mes = sum(l.valor for l in self.db.query(Lancamento).filter(
+            Lancamento.forma_pagamento == "cartao",
+            Lancamento.mes_ref == mes_atual
+        ).all())
+        fatura_estimativa = round(parcelas_mes + cartao_mes + valor_parcela, 2)
+
+        renda = saldo.get("receita_total", 0)
+        limite_parcela = max(renda * 0.05, 100) if dividas.get("total_divida", 0) > 0 else max(renda * 0.08, 150)
+        saldo_apos_parcela = saldo.get("saldo_projetado", 0) - valor_parcela
+
+        desejo = self.db.query(Desejo).filter(Desejo.nome.ilike(f"%{produto}%")).first()
+        motivos = []
+        aprovado = True
+
+        if valor <= 0:
+            aprovado = False
+            motivos.append("Valor invalido para simular.")
+        if saldo_apos_parcela < 0:
+            aprovado = False
+            motivos.append(f"A parcela deixaria o saldo projetado negativo em R$ {abs(saldo_apos_parcela):.2f}.")
+        if valor_parcela > limite_parcela:
+            aprovado = False
+            motivos.append(f"Parcela acima do limite seguro de R$ {limite_parcela:.2f}.")
+        if dividas.get("total_divida", 0) > 0 and prioridade != "alta":
+            aprovado = False
+            motivos.append("Existe divida ativa e o item nao parece essencial.")
+
+        return {
+            "produto": produto,
+            "valor_total": valor,
+            "parcelas": parcelas,
+            "valor_parcela": valor_parcela,
+            "prioridade": prioridade,
+            "motivo_prioridade": motivo_prioridade,
+            "esta_na_lista_de_desejos": bool(desejo),
+            "saldo_projetado_atual": saldo.get("saldo_projetado", 0),
+            "saldo_apos_primeira_parcela": round(saldo_apos_parcela, 2),
+            "fatura_mes_estimada_com_compra": fatura_estimativa,
+            "limite_parcela_segura": round(limite_parcela, 2),
+            "recomendacao": "APROVADO_COM_CONTROLE" if aprovado else "NAO_COMPRAR_AGORA",
+            "motivos": motivos or ["Cabe no orcamento atual, mas ainda precisa respeitar reserva e meta patrimonial."],
+        }
+
+    def get_radar_mercado(self, tickers: Optional[List[str]] = None):
+        try:
+            from services.market_service import MarketService
+            return MarketService().snapshot(tickers)
+        except Exception as e:
+            return {
+                "ok": False,
+                "erro": str(e),
+                "observacao": "Nao consegui consultar mercado agora. Nao invente cotacoes; trabalhe com estrategia e peca nova tentativa depois.",
+            }
+
 # =========================
 # MOTOR DE IA
 # =========================
@@ -465,6 +665,10 @@ class NexusAI:
             "get_plano_mensal": self.tools.get_plano_mensal,
             "get_reserva_status": self.tools.get_reserva_status,
             "get_cartao_alimentacao": self.tools.get_cartao_alimentacao,
+            "get_visao_patrimonial": self.tools.get_visao_patrimonial,
+            "planejar_meta_patrimonial": self.tools.planejar_meta_patrimonial,
+            "analisar_compra_parcelada": self.tools.analisar_compra_parcelada,
+            "get_radar_mercado": self.tools.get_radar_mercado,
         }
 
     def get_chat_history(self, chat_id: str, limit: int = 10) -> List[Dict]:
@@ -548,10 +752,128 @@ class NexusAI:
             print(f"Erro na IA: {e}")
             return self._fallback_response(user_message)
 
+    def _normalizar_texto(self, text: str) -> str:
+        text = (text or "").lower()
+        text = unicodedata.normalize("NFKD", text)
+        return "".join(c for c in text if not unicodedata.combining(c))
+
+    def _extrair_parcelas(self, text: str) -> int:
+        msg = self._normalizar_texto(text)
+        match = re.search(r"(\d+)\s*x", msg) or re.search(r"em\s+(\d+)\s+parcelas?", msg)
+        if not match:
+            return 1
+        return max(int(match.group(1)), 1)
+
+    def _extrair_prazo_anos(self, text: str, default: int = 10) -> int:
+        msg = self._normalizar_texto(text)
+        match = re.search(r"(\d+)\s+anos?", msg)
+        if not match:
+            return default
+        return max(int(match.group(1)), 1)
+
+    def _extrair_valor(self, text: str) -> float:
+        msg = self._normalizar_texto(text)
+        msg = re.sub(r"\d+\s*x", "", msg)
+        msg = re.sub(r"\d+\s+anos?", "", msg)
+        padrao = r"(?:r\$\s*)?(\d+(?:[\.\s]\d{3})*(?:,\d{2})?|\d+(?:[\.,]\d{2})?)\s*(milhao|milhoes|mil)?"
+        candidatos = []
+
+        if re.search(r"\bum\s+milha?o\b", msg):
+            candidatos.append(1000000)
+
+        for raw, escala in re.findall(padrao, msg):
+            try:
+                valor = float(raw.replace(".", "").replace(" ", "").replace(",", "."))
+            except ValueError:
+                continue
+            if escala in ["milhao", "milhoes"]:
+                valor *= 1000000
+            elif escala == "mil" and valor < 1000:
+                valor *= 1000
+            candidatos.append(valor)
+
+        candidatos = [v for v in candidatos if v > 0]
+        return max(candidatos) if candidatos else 0
+
     def _fallback_response(self, user_message: str) -> str:
-        msg = user_message.lower()
+        msg = self._normalizar_texto(user_message)
         saldo = self.tools.get_saldo_atual()
         dividas = self.tools.get_analise_dividas()
+
+        goal_terms = any(t in msg for t in ["investir", "acao", "acoes", "mercado", "etf", "dolar", "casa", "milhao", "milhoes", "prosperar", "patrimonio"])
+
+        if any(t in msg for t in ["parcel", "cartao", "comprar", "compra", "lista de desejo"]) and not goal_terms:
+            valor = self._extrair_valor(user_message)
+            if valor > 0:
+                analise = self.tools.analisar_compra_parcelada(
+                    produto=user_message[:80],
+                    valor=valor,
+                    parcelas=self._extrair_parcelas(user_message),
+                )
+                return (
+                    "NEXUS analista patrimonial (modo fallback)\n\n"
+                    f"Produto: {analise['produto']}\n"
+                    f"Valor: R$ {analise['valor_total']:.2f} em {analise['parcelas']}x de R$ {analise['valor_parcela']:.2f}\n"
+                    f"Recomendacao: {analise['recomendacao']}\n"
+                    f"Prioridade: {analise['prioridade']} - {analise['motivo_prioridade']}\n"
+                    f"Saldo apos primeira parcela: R$ {analise['saldo_apos_primeira_parcela']:.2f}\n"
+                    f"Fatura estimada do mes: R$ {analise['fatura_mes_estimada_com_compra']:.2f}\n\n"
+                    "Motivos:\n" +
+                    "\n".join([f"- {m}" for m in analise["motivos"]])
+                )
+
+        if "divida" in msg:
+            return (
+                f"📊 DIVIDAS (modo fallback)\n"
+                f"Total: R$ {dividas['total_divida']:.2f}\n"
+                f"Meta 3 meses: R$ {dividas['meta_3_meses']:.2f}/mes\n\n"
+                f"Ordem de pagamento:\n" +
+                "\n".join([f"  {i+1}. {d['nome']}: R$ {d['valor']:.2f}" for i, d in enumerate(dividas['detalhes'])])
+            )
+
+        if goal_terms:
+            rec = self.tools.get_recomendacao_investimento()
+            visao = self.tools.get_visao_patrimonial()
+            valor_meta = self._extrair_valor(user_message)
+            prazo = self._extrair_prazo_anos(user_message)
+            meta_txt = ""
+            if valor_meta > 0 and any(t in msg for t in ["casa", "milhao", "milhoes", "meta", "patrimonio"]):
+                meta = self.tools.planejar_meta_patrimonial(valor_meta, prazo)
+                meta_txt = (
+                    f"\n\nMeta simulada: R$ {meta['valor_meta']:.2f} em {meta['prazo_anos']} anos\n"
+                    f"Aporte necessario: R$ {meta['aporte_mensal_necessario']:.2f}/mes\n"
+                    f"Aporte sugerido pelo orcamento: R$ {meta['aporte_mensal_sugerido_pelo_orcamento']:.2f}/mes\n"
+                    f"Leitura: {meta['leitura']}"
+                )
+
+            radar_txt = ""
+            if any(t in msg for t in ["mercado", "acao", "acoes", "etf", "dolar"]):
+                radar = self.tools.get_radar_mercado()
+                ativos_ok = [a for a in radar.get("ativos", []) if a.get("ok")]
+                if ativos_ok:
+                    linhas = [
+                        f"- {a['ticker']}: R$ {a['preco']:.2f} | 30d {a.get('retorno_30d_pct')}% | 6m {a.get('retorno_6m_pct')}%"
+                        for a in ativos_ok[:6]
+                    ]
+                    radar_txt = "\n\nRadar de mercado para estudo:\n" + "\n".join(linhas)
+                else:
+                    radar_txt = "\n\nRadar de mercado indisponivel agora. Nao vou inventar cotacoes."
+
+            return (
+                "NEXUS analista patrimonial (modo fallback)\n\n"
+                f"Fase atual: {visao['fase']}\n"
+                f"Foco: {visao['foco']}\n"
+                f"Receita: R$ {visao['receita_total']:.2f}\n"
+                f"Saldo projetado: R$ {visao['saldo_projetado']:.2f}\n"
+                f"Divida: R$ {visao['divida_total']:.2f}\n"
+                f"Reserva: R$ {visao['reserva_atual']:.2f} de R$ {visao['meta_reserva']:.2f}\n"
+                f"Aporte sugerido hoje: R$ {visao['aporte_mensal_sugerido']:.2f}\n\n"
+                f"{rec['mensagem']}\n\n" +
+                "\n".join(rec["plano"]) +
+                meta_txt +
+                radar_txt +
+                "\n\nObservacao: isso e estrategia de estudo e controle de risco, nao promessa de retorno nem ordem de compra."
+            )
 
         if "gastar" in msg or "posso" in msg:
             return (
@@ -562,19 +884,6 @@ class NexusAI:
                 f"• https://console.groq.com (sem cartao)\n"
                 f"• https://aistudio.google.com (sem cartao)"
             )
-
-        if "divida" in msg or "dívida" in msg:
-            return (
-                f"📊 DIVIDAS (modo fallback)\n"
-                f"Total: R$ {dividas['total_divida']:.2f}\n"
-                f"Meta 3 meses: R$ {dividas['meta_3_meses']:.2f}/mes\n\n"
-                f"Ordem de pagamento:\n" +
-                "\n".join([f"  {i+1}. {d['nome']}: R$ {d['valor']:.2f}" for i, d in enumerate(dividas['detalhes'])])
-            )
-
-        if "investir" in msg:
-            rec = self.tools.get_recomendacao_investimento()
-            return rec["mensagem"] + "\n\n" + "\n".join(rec["plano"])
 
         return (
             f"👋 Ola! Sou o NEXUS (modo fallback).\n"

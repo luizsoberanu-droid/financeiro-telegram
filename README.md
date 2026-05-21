@@ -246,3 +246,22 @@ Rotina recomendada:
 2. Depois de grandes alteracoes, clique em `Salvar agora no Google Sheets`.
 3. No fechamento do mes, baixe o `snapshot JSON`.
 4. Se o Render reiniciar com banco vazio, restaure pelo Google Sheets.
+
+
+## NEXUS AI v8 — Telegram como analista patrimonial
+
+O Telegram agora deixa de funcionar como um menu de comandos programados e passa a responder como conversa direta com IA.
+
+Exemplos de perguntas:
+- `Analise minha renda e diga minha estrategia de crescimento`
+- `Posso parcelar um celular de R$ 2500 em 10x?`
+- `Quero comprar uma casa de R$ 1.000.000 em 10 anos, qual plano?`
+- `Veja o mercado atual e monte um radar de investimentos`
+- `Qual deve ser minha prioridade este mes para prosperar?`
+
+Novas capacidades da IA:
+- visao patrimonial com renda, divida, reserva e fase financeira;
+- simulacao de metas grandes com aporte mensal necessario;
+- analise de compra parcelada com impacto na fatura e na meta;
+- radar de mercado com indices, dolar, ETFs e acoes brasileiras via cotacoes publicas;
+- orientacao de investimento com risco, prazo, liquidez e diversificacao, sem promessa de retorno.
