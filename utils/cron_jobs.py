@@ -61,9 +61,25 @@ def iniciar_cron_jobs(app):
         replace_existing=True
     )
 
+    scheduler.add_job(
+        func=lambda: enviar_revisao_mensal_desejos(app),
+        trigger=CronTrigger(day=1, hour=10, minute=30),
+        id='revisao_mensal_desejos',
+        name='Revisao Mensal de Desejos e Precos',
+        replace_existing=True
+    )
+
+    scheduler.add_job(
+        func=lambda: enviar_checkup_sazonal(app),
+        trigger=CronTrigger(day=1, hour=10, minute=45),
+        id='checkup_sazonal',
+        name='Check-up Sazonal de Clima e Desejos',
+        replace_existing=True
+    )
+
     telegram_automations = os.getenv("TELEGRAM_AUTOMATIONS_ENABLED", "false").lower() in ["true", "1", "sim", "yes"]
     if not telegram_automations:
-        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas"]:
+        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas", "revisao_mensal_desejos", "checkup_sazonal"]:
             try:
                 scheduler.remove_job(job_id)
             except Exception:
@@ -80,6 +96,18 @@ def iniciar_cron_jobs(app):
         print("   • Check-up dívidas: domingo às 10h")
     print("   Automações Telegram: " + ("ligadas" if telegram_automations else "desligadas"))
     return scheduler
+
+
+def _chat_ids_destino(db):
+    chat_env = os.getenv("TELEGRAM_DEFAULT_CHAT_ID", "").strip()
+    if chat_env:
+        return [chat_env]
+    try:
+        from models.database import Conversa
+        ids = [row[0] for row in db.query(Conversa.chat_id).distinct().all() if row[0] and row[0] != "default"]
+        return ids or ["default"]
+    except Exception:
+        return ["default"]
 
 def enviar_alertas_diarios(app):
     """Envia alertas diários para todos os usuários"""
@@ -176,6 +204,44 @@ def atualizar_historico_mensal(app):
             print(f"[{datetime.now()}] Histórico mensal atualizado")
         except Exception as e:
             print(f"[{datetime.now()}] Erro ao atualizar histórico mensal: {e}")
+        finally:
+            db.close()
+
+
+def enviar_revisao_mensal_desejos(app):
+    """Busca media real de precos dos desejos e envia resumo mensal."""
+    with app.app_context():
+        from models.database import SessionLocal
+        from services.alert_service import telegram_send
+        from services.wishlist_advisor_service import WishlistAdvisorService
+
+        db = SessionLocal()
+        try:
+            result = WishlistAdvisorService(db).revisar_precos_mensal()
+            for chat_id in _chat_ids_destino(db):
+                telegram_send(chat_id, result["mensagem"])
+            print(f"[{datetime.now()}] Revisao mensal de desejos enviada")
+        except Exception as e:
+            print(f"[{datetime.now()}] Erro revisao mensal de desejos: {e}")
+        finally:
+            db.close()
+
+
+def enviar_checkup_sazonal(app):
+    """Envia sugestoes de desejos conforme clima e troca de estacao."""
+    with app.app_context():
+        from models.database import SessionLocal
+        from services.alert_service import telegram_send
+        from services.seasonal_advisor_service import SeasonalAdvisorService
+
+        db = SessionLocal()
+        try:
+            result = SeasonalAdvisorService(db).mensagem_sazonal()
+            for chat_id in _chat_ids_destino(db):
+                telegram_send(chat_id, result["mensagem"])
+            print(f"[{datetime.now()}] Check-up sazonal enviado")
+        except Exception as e:
+            print(f"[{datetime.now()}] Erro check-up sazonal: {e}")
         finally:
             db.close()
 

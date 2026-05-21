@@ -15,6 +15,7 @@ SHEET_TABLES = [
     "parcelas",
     "resumo_mensal",
     "desejos",
+    "precos_desejos_historico",
     "faturas_cartao_credito",
 ]
 
@@ -39,7 +40,7 @@ class SheetsBackupService:
     def _models(self):
         from models.database import (
             Apontamento, Config, ContaFixa, Cartao, CartaoAlimentacao, Divida, Limite,
-            Lancamento, MovimentoAlimentacao, Parcela, ResumoMensal
+            Lancamento, MovimentoAlimentacao, Parcela, PrecoDesejoHistorico, ResumoMensal
         )
         models = {
             "config": Config,
@@ -53,6 +54,7 @@ class SheetsBackupService:
             "lancamentos": Lancamento,
             "parcelas": Parcela,
             "resumo_mensal": ResumoMensal,
+            "precos_desejos_historico": PrecoDesejoHistorico,
         }
         try:
             from models.database import Desejo

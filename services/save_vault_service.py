@@ -24,6 +24,7 @@ class SaveVaultService:
             Limite,
             MovimentoAlimentacao,
             Parcela,
+            PrecoDesejoHistorico,
             ResumoMensal,
         )
 
@@ -40,6 +41,7 @@ class SaveVaultService:
             ("parcelas", Parcela),
             ("resumo_mensal", ResumoMensal),
             ("desejos", Desejo),
+            ("precos_desejos_historico", PrecoDesejoHistorico),
             ("conversas", Conversa),
             ("alertas", Alerta),
         ]

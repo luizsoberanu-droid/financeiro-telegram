@@ -485,6 +485,14 @@ def api_list_desejos():
             "nome": d.nome,
             "preco": round(d.valor or 0, 2),
             "valor": round(d.valor or 0, 2),
+            "preco_fonte": d.preco_fonte,
+            "preco_medio": round(d.preco_medio or 0, 2),
+            "preco_mediano": round(d.preco_mediano or 0, 2),
+            "preco_minimo": round(d.preco_minimo or 0, 2),
+            "preco_maximo": round(d.preco_maximo or 0, 2),
+            "preco_qtd": int(d.preco_qtd or 0),
+            "preco_exemplo": d.preco_exemplo,
+            "preco_atualizado_em": d.preco_atualizado_em.isoformat() if d.preco_atualizado_em else "",
             "prioridade": d.prioridade or "media",
             "categoria": d.prioridade or "media",
             "comprado": bool(d.comprado),
@@ -499,9 +507,22 @@ def api_add_desejo():
     try:
         p = request.get_json() or {}
         from models.database import Desejo
+        from services.wishlist_advisor_service import WishlistAdvisorService, buscar_preco_mercado_livre
 
-        valor = p.get("valor", p.get("preco", 0))
+        valor = p.get("valor", p.get("preco", None))
         prioridade = p.get("prioridade", p.get("categoria", "media"))
+        preco_info = None
+
+        if valor in [None, "", 0, "0"]:
+            preco_info = buscar_preco_mercado_livre(p["nome"])
+            if not preco_info.get("ok"):
+                return jsonify({
+                    "ok": False,
+                    "erro": "nao_consegui_buscar_preco_real",
+                    "detalhe": preco_info.get("erro"),
+                    "mensagem": "Nao consegui buscar preco real agora. Informe um valor manual ou tente de novo."
+                }), 400
+            valor = preco_info.get("preco_medio") or preco_info.get("preco_mediano")
 
         desejo = Desejo(
             nome=p["nome"],
@@ -511,8 +532,17 @@ def api_add_desejo():
 
         db.add(desejo)
         db.commit()
+        if preco_info:
+            WishlistAdvisorService(db).registrar_preco_desejo(desejo, preco_info)
+            db.commit()
 
-        return jsonify({"ok": True, "id": desejo.id})
+        return jsonify({
+            "ok": True,
+            "id": desejo.id,
+            "valor": round(desejo.valor or 0, 2),
+            "preco_info": preco_info,
+            "mensagem": "Item salvo com media real de preco." if preco_info else "Item salvo com valor informado."
+        })
 
     finally:
         db.close()
@@ -640,10 +670,11 @@ def api_recalcular_limites_cartoes():
 def api_delete_desejo(id):
     db = get_db_session()
     try:
-        from models.database import Desejo
+        from models.database import Desejo, PrecoDesejoHistorico
         d = db.query(Desejo).filter(Desejo.id == id).first()
         if not d:
             return jsonify({"ok": False, "erro": "desejo nao encontrado"}), 404
+        db.query(PrecoDesejoHistorico).filter(PrecoDesejoHistorico.desejo_id == id).delete()
         db.delete(d)
         db.commit()
         return jsonify({"ok": True})
@@ -671,6 +702,9 @@ def api_analise_desejos():
                 "id": d.id,
                 "nome": d.nome,
                 "valor": round(d.valor or 0, 2),
+                "preco_fonte": d.preco_fonte,
+                "preco_qtd": int(d.preco_qtd or 0),
+                "preco_atualizado_em": d.preco_atualizado_em.isoformat() if d.preco_atualizado_em else "",
                 "prioridade": prioridade,
                 "resumo": resumo,
                 "melhor_caminho": diag.get("melhor_caminho"),
@@ -682,5 +716,35 @@ def api_analise_desejos():
             })
 
         return jsonify({"ok": True, "desejos": rows})
+    finally:
+        db.close()
+
+
+@api_bp.route('/desejos/revisao_precos', methods=['POST'])
+def api_revisao_precos_desejos():
+    db = get_db_session()
+    try:
+        p = request.get_json() or {}
+        from services.wishlist_advisor_service import WishlistAdvisorService
+        result = WishlistAdvisorService(db).revisar_precos_mensal()
+        if p.get("enviar_telegram"):
+            from services.alert_service import telegram_send
+            telegram_send(p.get("chat_id", "default"), result["mensagem"])
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+@api_bp.route('/desejos/sugestao_sazonal', methods=['GET', 'POST'])
+def api_sugestao_sazonal():
+    db = get_db_session()
+    try:
+        p = request.get_json(silent=True) or {}
+        from services.seasonal_advisor_service import SeasonalAdvisorService
+        result = SeasonalAdvisorService(db).mensagem_sazonal()
+        if request.method == "POST" and p.get("enviar_telegram"):
+            from services.alert_service import telegram_send
+            telegram_send(p.get("chat_id", "default"), result["mensagem"])
+        return jsonify(result)
     finally:
         db.close()

@@ -268,4 +268,7 @@ Integracoes conversacionais no Telegram:
 - `meu limite do Nubank e R$ 5000`: registra o limite real do cartao.
 - `quanto posso gastar no cartao este mes?`: mostra limite real, limite seguro mensal, uso atual e disponivel.
 - `quero comprar celular de R$ 2500`: adiciona na lista de desejos e analisa quando pode comprar.
-- `adiciona PlayStation 5 na lista de desejos`: tenta estimar o preco, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.
+- `adiciona PlayStation 5 na lista de desejos`: busca media real de preco na internet, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.
+- Revisao mensal: quando as automacoes Telegram estao ligadas, o NEXUS consulta a media dos desejos todo mes, guarda historico e avisa se o preco cair ou se a compra ficar segura.
+- Check-up sazonal: o NEXUS cruza estacao do ano e clima para sugerir itens como roupas de frio, roupas leves, cobertor ou ventilador antes da necessidade apertar.
+- Para receber mensagens automaticas, use `TELEGRAM_AUTOMATIONS_ENABLED=true`. Se quiser fixar um chat, use `TELEGRAM_DEFAULT_CHAT_ID`.

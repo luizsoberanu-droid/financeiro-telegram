@@ -178,7 +178,7 @@ def _salvar_lancamento(db, chat_id, descricao, valor, forma_pagamento, cartao_no
     return "\n".join(linhas)
 
 
-def _salvar_desejo(db, nome, valor):
+def _salvar_desejo(db, nome, valor, preco_info=None):
     from models.database import Desejo
     from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
 
@@ -189,18 +189,27 @@ def _salvar_desejo(db, nome, valor):
         existente.prioridade = prioridade
         acao = "Item atualizado na lista de desejos."
     else:
-        db.add(Desejo(nome=nome, valor=float(valor), prioridade=prioridade))
+        existente = Desejo(nome=nome, valor=float(valor), prioridade=prioridade)
+        db.add(existente)
         acao = "Item salvo na lista de desejos."
     db.commit()
 
     svc = WishlistAdvisorService(db)
+    desejo = db.query(Desejo).filter(Desejo.nome.ilike(nome)).first()
+    if desejo and preco_info and preco_info.get("ok"):
+        svc.registrar_preco_desejo(desejo, preco_info)
+        db.commit()
     plano = svc.diagnostico_compra(nome, valor)
     analise = svc.analisar_compra(nome, valor)
+    fonte = ""
+    if preco_info and preco_info.get("ok"):
+        fonte = f"\nFonte do preco: {preco_info['fonte']} - media de {preco_info['qtd']} anuncios."
     return (
         f"{acao}\n"
         f"Item: {nome}\n"
         f"Valor: R$ {float(valor):.2f}\n"
         f"Prioridade: {prioridade.upper()}\n\n"
+        f"{fonte}\n"
         f"Decisao: {plano['decisao']}\n"
         f"Melhor caminho: {plano['melhor_caminho']}\n"
         f"Quando comprar: {plano['quando_comprar']}\n\n"
@@ -329,15 +338,15 @@ def _tratar_desejo(db, chat_id, text):
         try:
             from services.wishlist_advisor_service import buscar_preco_mercado_livre
             preco_info = buscar_preco_mercado_livre(nome)
-            if preco_info.get("ok") and preco_info.get("preco_mediano"):
-                valor = float(preco_info["preco_mediano"])
-                return _salvar_desejo(db, nome, valor)
+            if preco_info.get("ok") and preco_info.get("preco_medio"):
+                valor = float(preco_info["preco_medio"])
+                return _salvar_desejo(db, nome, valor, preco_info)
         except Exception as e:
-            print(f"Aviso: nao consegui estimar preco do desejo: {e}")
+            print(f"Aviso: nao consegui buscar preco real do desejo: {e}")
 
         s = _session(chat_id)
         s.update({"awaiting": "valor_desejo", "nome_desejo": nome})
-        return f"Entendi o desejo: {nome}. Nao consegui estimar o preco agora. Qual valor devo considerar?"
+        return f"Entendi o desejo: {nome}. Nao consegui buscar preco real agora. Qual valor devo considerar?"
 
     return _salvar_desejo(db, nome, valor)
 

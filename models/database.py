@@ -128,8 +128,32 @@ class Desejo(Base):
     id = Column(Integer, primary_key=True)
     nome = Column(String, nullable=False)
     valor = Column(Float, nullable=False)
+    preco_fonte = Column(String, nullable=True)
+    preco_medio = Column(Float, default=0.0)
+    preco_mediano = Column(Float, default=0.0)
+    preco_minimo = Column(Float, default=0.0)
+    preco_maximo = Column(Float, default=0.0)
+    preco_qtd = Column(Integer, default=0)
+    preco_exemplo = Column(Text, nullable=True)
+    preco_atualizado_em = Column(DateTime, nullable=True)
     prioridade = Column(String, default="media")
     comprado = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PrecoDesejoHistorico(Base):
+    __tablename__ = 'precos_desejos_historico'
+    id = Column(Integer, primary_key=True)
+    desejo_id = Column(Integer, ForeignKey('desejos.id'), nullable=True)
+    nome = Column(String, nullable=False)
+    mes_ref = Column(String, nullable=False)
+    preco_medio = Column(Float, default=0.0)
+    preco_mediano = Column(Float, default=0.0)
+    preco_minimo = Column(Float, default=0.0)
+    preco_maximo = Column(Float, default=0.0)
+    qtd_anuncios = Column(Integer, default=0)
+    fonte = Column(String, nullable=True)
+    exemplo = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Conversa(Base):
@@ -265,6 +289,23 @@ def _ensure_schema(session):
         if "saldo_final" not in colunas_resumo:
             session.execute(text("ALTER TABLE resumo_mensal ADD COLUMN saldo_final FLOAT DEFAULT 0"))
             session.commit()
+
+    if "desejos" in tabelas:
+        colunas_desejos = {c["name"] for c in inspector.get_columns("desejos")}
+        colunas_novas = [
+            ("preco_fonte", "VARCHAR"),
+            ("preco_medio", "FLOAT DEFAULT 0"),
+            ("preco_mediano", "FLOAT DEFAULT 0"),
+            ("preco_minimo", "FLOAT DEFAULT 0"),
+            ("preco_maximo", "FLOAT DEFAULT 0"),
+            ("preco_qtd", "INTEGER DEFAULT 0"),
+            ("preco_exemplo", "TEXT"),
+            ("preco_atualizado_em", "DATETIME"),
+        ]
+        for nome, tipo in colunas_novas:
+            if nome not in colunas_desejos:
+                session.execute(text(f"ALTER TABLE desejos ADD COLUMN {nome} {tipo}"))
+                session.commit()
 
 def get_db():
     db = SessionLocal()
