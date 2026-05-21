@@ -1571,7 +1571,9 @@ async function loadDesejos() {
             html += '<ul style="margin-top:10px;">';
             itens.slice(0, 5).forEach(function(d) {
                 html += '<li><b>' + d.nome + '</b> — R$ ' + Number(d.valor || 0).toFixed(2).replace('.', ',') +
-                        ' | Prioridade: ' + d.prioridade + ' | ' + d.resumo + '</li>';
+                        ' | Prioridade: ' + d.prioridade + ' | ' + d.resumo +
+                        '<br><span style="color:var(--text-dim)">Melhor caminho: ' + (d.melhor_caminho || '-') + '</span>' +
+                        '<br><span style="color:var(--text-dim)">Quando comprar: ' + (d.quando_comprar || '-') + '</span></li>';
             });
             html += '</ul>';
             html += '<p style="margin-top:10px;color:var(--text-dim);">Regra: geladeira/remédio/vestuário básico vêm antes de celular, videogame e lazer.</p>';

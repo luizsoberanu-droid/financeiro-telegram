@@ -656,17 +656,19 @@ def api_analise_desejos():
             prioridade = d.prioridade or "media"
             # Usa valor já salvo para não ficar consultando internet toda hora
             texto = svc.analisar_compra(d.nome, d.valor or 0)
-            resumo = "Aguardar"
-            if "TECnicamente POSS" in texto.upper() or "TECNICAMENTE POSSÍVEL" in texto.upper():
-                resumo = "Pode planejar"
-            if "NÃO recomendo" in texto or "NAO recomendo" in texto:
-                resumo = "Não comprar agora"
+            diag = svc.diagnostico_compra(d.nome, d.valor or 0)
+            resumo = diag.get("decisao", "Aguardar")
             rows.append({
                 "id": d.id,
                 "nome": d.nome,
                 "valor": round(d.valor or 0, 2),
                 "prioridade": prioridade,
                 "resumo": resumo,
+                "melhor_caminho": diag.get("melhor_caminho"),
+                "quando_comprar": diag.get("quando_comprar"),
+                "pagamento_recomendado": diag.get("pagamento_recomendado"),
+                "parcelas_recomendadas": diag.get("parcelas_recomendadas"),
+                "valor_parcela_recomendado": diag.get("valor_parcela_recomendado"),
                 "analise": texto
             })
 

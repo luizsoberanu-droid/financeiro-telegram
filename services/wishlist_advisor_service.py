@@ -111,6 +111,144 @@ class WishlistAdvisorService:
 
         return total
 
+    def diagnostico_compra(self, produto, preco_informado=None):
+        produto = limpar_query(produto)
+        prioridade = classificar_prioridade(produto)
+        motivo = explicar_prioridade(produto, prioridade)
+
+        preco_info = None
+        preco = preco_informado
+        if preco is None:
+            preco_info = buscar_preco_mercado_livre(produto)
+            if preco_info.get("ok"):
+                preco = preco_info["preco_mediano"]
+
+        preco = float(preco or 0)
+        saldo, dividas = self._dados_financeiros()
+        saldo_proj = saldo.get("saldo_projetado", 0)
+        divida = dividas.get("total_divida", 0)
+        renda = saldo.get("receita_total", 0)
+
+        faturas = self._faturas_futuras_cartao(6)
+        maior_fatura_futura = max(faturas.values()) if faturas else 0
+
+        from services.card_limit_service import CardLimitService
+        limites_cartao = CardLimitService(self.db).resumo_limites()
+        disponivel_seguro_mes = limites_cartao.get("disponivel_seguro_mes", 0)
+        cartoes = limites_cartao.get("cartoes", [])
+        maior_disponivel_real = max([c.get("disponivel_real", 0) for c in cartoes], default=0)
+        tem_limite_real = limites_cartao.get("limite_total_real", 0) > 0
+
+        limite_parcela_segura = max(renda * 0.05, 100) if divida > 0 else max(renda * 0.08, 150)
+        opcoes = []
+        if preco > 0:
+            for n in range(2, 13):
+                parcela = preco / n
+                if tem_limite_real and preco > maior_disponivel_real:
+                    continue
+                if parcela <= limite_parcela_segura and parcela <= max(disponivel_seguro_mes, limite_parcela_segura) and (saldo_proj - parcela) > 0:
+                    opcoes.append({
+                        "parcelas": n,
+                        "valor_parcela": round(parcela, 2),
+                        "fatura_estimada": round(maior_fatura_futura + parcela, 2),
+                    })
+
+        saldo_apos_avista = saldo_proj - preco
+        capacidade_mes = max(min(max(saldo_proj, 0) * 0.7, renda * 0.12), renda * 0.05, 50)
+        meses_para_juntar = max(math.ceil(max(preco - max(saldo_proj, 0), 0) / capacidade_mes), 1) if preco > 0 else None
+        meses_para_reduzir_divida = max(math.ceil(divida / max(capacidade_mes, 1)), 1) if divida > 0 else 0
+
+        motivos = []
+        if preco <= 0:
+            return {
+                "produto": produto,
+                "preco": 0,
+                "prioridade": prioridade,
+                "motivo_prioridade": motivo,
+                "decisao": "PRECISO_DO_VALOR",
+                "melhor_caminho": "Informe o valor para eu calcular a vista, parcelado e prazo.",
+                "quando_comprar": "Depois que o valor for informado.",
+                "pagamento_recomendado": "indefinido",
+                "parcelas_recomendadas": None,
+                "valor_parcela_recomendado": None,
+                "motivos": ["Sem valor nao existe simulacao confiavel."],
+                "preco_fonte": preco_info.get("fonte") if preco_info else None,
+            }
+
+        if divida > 0 and prioridade != "alta":
+            motivos.append("Existe divida ativa e o item nao e essencial.")
+            return {
+                "produto": produto,
+                "preco": round(preco, 2),
+                "prioridade": prioridade,
+                "motivo_prioridade": motivo,
+                "decisao": "NAO_COMPRAR_AGORA",
+                "melhor_caminho": "Guardar na lista, quitar/reduzir dividas e reavaliar antes de usar cartao.",
+                "quando_comprar": f"Reavaliar em aproximadamente {meses_para_reduzir_divida} mes(es), depois da fase de dividas aliviar.",
+                "pagamento_recomendado": "esperar",
+                "parcelas_recomendadas": None,
+                "valor_parcela_recomendado": None,
+                "motivos": motivos,
+                "preco_fonte": preco_info.get("fonte") if preco_info else "valor informado",
+            }
+
+        if saldo_apos_avista >= 0 and divida <= 0 and prioridade == "alta":
+            return {
+                "produto": produto,
+                "preco": round(preco, 2),
+                "prioridade": prioridade,
+                "motivo_prioridade": motivo,
+                "decisao": "PODE_PLANEJAR",
+                "melhor_caminho": "A vista, se nao reduzir sua reserva nem atrasar conta essencial.",
+                "quando_comprar": "Pode avaliar neste mes com conferencia final da reserva.",
+                "pagamento_recomendado": "a_vista",
+                "parcelas_recomendadas": None,
+                "valor_parcela_recomendado": None,
+                "motivos": ["Item prioritario e saldo comporta a compra a vista."],
+                "preco_fonte": preco_info.get("fonte") if preco_info else "valor informado",
+            }
+
+        if opcoes:
+            escolhido = opcoes[0]
+            if preco > renda * 0.5:
+                escolhido = next((o for o in opcoes if o["parcelas"] >= 8), opcoes[-1])
+            return {
+                "produto": produto,
+                "preco": round(preco, 2),
+                "prioridade": prioridade,
+                "motivo_prioridade": motivo,
+                "decisao": "PARCELADO_COM_CONTROLE",
+                "melhor_caminho": f"Parcelar em {escolhido['parcelas']}x de R$ {escolhido['valor_parcela']:.2f}, sem ultrapassar o limite seguro do mes.",
+                "quando_comprar": "Pode planejar quando nao houver conta atrasada e a fatura continuar dentro do limite seguro.",
+                "pagamento_recomendado": "parcelado",
+                "parcelas_recomendadas": escolhido["parcelas"],
+                "valor_parcela_recomendado": escolhido["valor_parcela"],
+                "motivos": ["Parcela cabe no limite mensal seguro e nao deixa saldo projetado negativo."],
+                "preco_fonte": preco_info.get("fonte") if preco_info else "valor informado",
+            }
+
+        if tem_limite_real and preco > maior_disponivel_real:
+            motivos.append(f"O valor passa do maior limite real disponivel em um cartao: R$ {maior_disponivel_real:.2f}.")
+        if saldo_apos_avista < 0:
+            motivos.append("A vista deixaria o saldo projetado negativo.")
+        if not opcoes:
+            motivos.append("Nenhuma parcela ficou segura dentro da renda e do limite mensal.")
+
+        return {
+            "produto": produto,
+            "preco": round(preco, 2),
+            "prioridade": prioridade,
+            "motivo_prioridade": motivo,
+            "decisao": "AGUARDAR_PLANEJANDO",
+            "melhor_caminho": f"Guardar cerca de R$ {min(capacidade_mes, preco):.2f}/mes e comprar sem pressionar a fatura.",
+            "quando_comprar": f"Daqui a aproximadamente {meses_para_juntar} mes(es), reavaliando renda, dividas e limite.",
+            "pagamento_recomendado": "juntar_primeiro",
+            "parcelas_recomendadas": None,
+            "valor_parcela_recomendado": None,
+            "motivos": motivos or ["Compra exige mais folga no orcamento."],
+            "preco_fonte": preco_info.get("fonte") if preco_info else "valor informado",
+        }
+
     def analisar_compra(self, produto, preco_informado=None):
         produto = limpar_query(produto)
         prioridade = classificar_prioridade(produto)
@@ -122,6 +260,8 @@ class WishlistAdvisorService:
             preco_info = buscar_preco_mercado_livre(produto)
             if preco_info.get("ok"):
                 preco = preco_info["preco_mediano"]
+
+        diagnostico = self.diagnostico_compra(produto, preco if preco is not None else None)
 
         saldo, dividas = self._dados_financeiros()
         saldo_proj = saldo.get("saldo_projetado", 0)
@@ -143,6 +283,9 @@ class WishlistAdvisorService:
         linhas.append("")
         linhas.append(f"Item analisado: {produto}")
         linhas.append(f"Prioridade: {prioridade.upper()} — {motivo}")
+        linhas.append(f"Decisao direta: {diagnostico['decisao']}")
+        linhas.append(f"Melhor caminho: {diagnostico['melhor_caminho']}")
+        linhas.append(f"Quando comprar: {diagnostico['quando_comprar']}")
 
         if preco is not None:
             linhas.append(f"Preço usado na análise: R$ {preco:.2f}")

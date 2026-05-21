@@ -263,3 +263,4 @@ Integracoes conversacionais no Telegram:
 - `meu limite do Nubank e R$ 5000`: registra o limite real do cartao.
 - `quanto posso gastar no cartao este mes?`: mostra limite real, limite seguro mensal, uso atual e disponivel.
 - `quero comprar celular de R$ 2500`: adiciona na lista de desejos e analisa quando pode comprar.
+- `adiciona PlayStation 5 na lista de desejos`: tenta estimar o preco, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.

@@ -57,6 +57,22 @@ def _extrair_valor(text):
     return max([v for v in candidatos if v > 0], default=0)
 
 
+def _extrair_valor_desejo(text):
+    valor = _extrair_valor(text)
+    if valor <= 0:
+        return 0
+
+    msg = _normalizar(text)
+    tem_sinal_preco = (
+        "r$" in msg
+        or " reais" in msg
+        or re.search(r"\b(de|por|preco|preço|valor|custa|custe)\s+(r\$\s*)?\d", msg)
+    )
+    if valor < 50 and not tem_sinal_preco:
+        return 0
+    return valor
+
+
 def _limpar_nome(text):
     nome = text or ""
     nome = re.sub(r"(?i)\br\$?\s*\d+(?:[\.\s]\d{3})*(?:[,.]\d{2})?\b", " ", nome)
@@ -64,8 +80,10 @@ def _limpar_nome(text):
     termos = [
         "comprei", "gastei", "paguei", "lancar", "lançar", "lance", "lança",
         "registre", "registrar", "gasto", "quero comprar", "desejo comprar",
-        "adicionar desejo", "adiciona desejo", "salvar desejo", "colocar na lista de desejos",
-        "coloca na lista de desejos", "adicionar na lista de desejos", "guardar na lista de desejos",
+        "adicionar desejo", "adiciona desejo", "salvar desejo", "guardar desejo",
+        "colocar na lista de desejos", "coloca na lista de desejos", "adicionar na lista de desejos",
+        "guardar na lista de desejos", "na lista de desejos", "lista de desejos", "lista de desejo",
+        "adiciona", "adicionar", "coloca", "colocar", "salva", "salvar", "guardar",
         "de", "por", "no cartao", "no cartão", "cartao", "cartão", "credito", "crédito",
         "dinheiro", "pix", "debito", "débito",
     ]
@@ -164,16 +182,27 @@ def _salvar_desejo(db, nome, valor):
     from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
 
     prioridade = classificar_prioridade(nome)
-    desejo = Desejo(nome=nome, valor=float(valor), prioridade=prioridade)
-    db.add(desejo)
+    existente = db.query(Desejo).filter(Desejo.nome.ilike(nome)).first()
+    if existente:
+        existente.valor = float(valor)
+        existente.prioridade = prioridade
+        acao = "Item atualizado na lista de desejos."
+    else:
+        db.add(Desejo(nome=nome, valor=float(valor), prioridade=prioridade))
+        acao = "Item salvo na lista de desejos."
     db.commit()
 
-    analise = WishlistAdvisorService(db).analisar_compra(nome, valor)
+    svc = WishlistAdvisorService(db)
+    plano = svc.diagnostico_compra(nome, valor)
+    analise = svc.analisar_compra(nome, valor)
     return (
-        "Item salvo na lista de desejos.\n"
+        f"{acao}\n"
         f"Item: {nome}\n"
         f"Valor: R$ {float(valor):.2f}\n"
         f"Prioridade: {prioridade.upper()}\n\n"
+        f"Decisao: {plano['decisao']}\n"
+        f"Melhor caminho: {plano['melhor_caminho']}\n"
+        f"Quando comprar: {plano['quando_comprar']}\n\n"
         + analise
     )
 
@@ -204,7 +233,7 @@ def _tratar_pendencia(db, chat_id, text):
         return "Limite real registrado.\n\n" + _formatar_limites(db)
 
     if awaiting == "valor_desejo":
-        valor = _extrair_valor(text)
+        valor = _extrair_valor_desejo(text)
         if valor <= 0:
             return f"Qual valor devo considerar para {s['nome_desejo']}?"
         _clear_session(chat_id)
@@ -239,20 +268,30 @@ def _tratar_limite_cartao(db, chat_id, text):
 def _tratar_desejo(db, chat_id, text):
     msg = _normalizar(text)
     termos_desejo = [
-        "lista de desejo", "lista de desejos", "adicionar desejo", "salvar desejo",
-        "quero comprar", "desejo comprar", "guardar desejo",
+        "lista de desejo", "lista de desejos", "adicionar desejo", "adiciona",
+        "adicionar", "salvar desejo", "salva desejo", "guardar desejo",
+        "coloca", "colocar", "quero comprar", "desejo comprar", "guardar desejo",
     ]
     if not any(t in msg for t in termos_desejo):
         return None
     if "posso comprar" in msg:
         return None
 
-    valor = _extrair_valor(text)
+    valor = _extrair_valor_desejo(text)
     nome = _limpar_nome(text)
     if valor <= 0:
+        try:
+            from services.wishlist_advisor_service import buscar_preco_mercado_livre
+            preco_info = buscar_preco_mercado_livre(nome)
+            if preco_info.get("ok") and preco_info.get("preco_mediano"):
+                valor = float(preco_info["preco_mediano"])
+                return _salvar_desejo(db, nome, valor)
+        except Exception as e:
+            print(f"Aviso: nao consegui estimar preco do desejo: {e}")
+
         s = _session(chat_id)
         s.update({"awaiting": "valor_desejo", "nome_desejo": nome})
-        return f"Salvo o item {nome}, mas preciso do valor para analisar. Qual preco devo considerar?"
+        return f"Entendi o desejo: {nome}. Nao consegui estimar o preco agora. Qual valor devo considerar?"
 
     return _salvar_desejo(db, nome, valor)
 
