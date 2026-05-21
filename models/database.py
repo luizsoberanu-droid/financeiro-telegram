@@ -42,6 +42,28 @@ class Cartao(Base):
     pago = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class CartaoAlimentacao(Base):
+    __tablename__ = 'cartao_alimentacao'
+    id = Column(Integer, primary_key=True)
+    nome = Column(String, nullable=False, default="alimentacao")
+    saldo_atual = Column(Float, default=0.0)
+    recarga_mensal = Column(Float, default=0.0)
+    dia_recarga = Column(Integer, default=1)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MovimentoAlimentacao(Base):
+    __tablename__ = 'movimentos_alimentacao'
+    id = Column(Integer, primary_key=True)
+    tipo = Column(String, nullable=False)  # credito, debito ou ajuste
+    descricao = Column(String, nullable=False)
+    valor = Column(Float, nullable=False)
+    saldo_apos = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class Divida(Base):
     __tablename__ = 'dividas'
     id = Column(Integer, primary_key=True)
@@ -162,6 +184,9 @@ def init_db():
             Cartao(nome="nubank", vencimento=1, melhor_dia_compra=30),
         ]
         session.add_all(cartoes_seed)
+
+    if session.query(CartaoAlimentacao).count() == 0:
+        session.add(CartaoAlimentacao(nome="cartao alimentacao", saldo_atual=0.0, recarga_mensal=0.0, dia_recarga=1))
 
     if session.query(Divida).count() == 0:
         dividas_seed = [

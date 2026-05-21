@@ -6,6 +6,8 @@ SHEET_TABLES = [
     "config",
     "contas_fixas",
     "cartoes",
+    "cartao_alimentacao",
+    "movimentos_alimentacao",
     "dividas",
     "limites",
     "lancamentos",
@@ -35,13 +37,15 @@ class SheetsBackupService:
 
     def _models(self):
         from models.database import (
-            Config, ContaFixa, Cartao, Divida, Limite,
-            Lancamento, Parcela, ResumoMensal
+            Config, ContaFixa, Cartao, CartaoAlimentacao, Divida, Limite,
+            Lancamento, MovimentoAlimentacao, Parcela, ResumoMensal
         )
         models = {
             "config": Config,
             "contas_fixas": ContaFixa,
             "cartoes": Cartao,
+            "cartao_alimentacao": CartaoAlimentacao,
+            "movimentos_alimentacao": MovimentoAlimentacao,
             "dividas": Divida,
             "limites": Limite,
             "lancamentos": Lancamento,

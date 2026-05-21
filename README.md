@@ -211,3 +211,36 @@ SELF_URL=https://SEU-APP.onrender.com
 ```
 
 Para manter Render Free acordado com maior estabilidade, use também UptimeRobot a cada 5 minutos apontando para `/api/ping`.
+
+
+## NEXUS AI v7 — Cartao alimentacao + Cofre vitalicio
+
+Novidades desta melhoria:
+- Saldo do cartao alimentacao no dashboard principal.
+- Aba dedicada para configurar saldo, recarga mensal e dia de recarga.
+- Registro de uso, recarga e ajuste do cartao alimentacao sem baguncar o saldo em dinheiro.
+- Comandos no Telegram:
+  - `alimentacao` ou `va`: mostra saldo, status e sugestao.
+  - `alimentacao 25 mercado`: registra uso de R$ 25.
+  - `alimentacao recarga 700`: registra recarga.
+  - `cofre` ou `salvamento`: mostra o plano de protecao dos dados.
+- Aba `Cofre` no painel com tres camadas:
+  - SQLite para uso diario.
+  - Google Sheets como espelho permanente.
+  - Snapshot JSON portatil para guardar fora do app.
+
+Novos endpoints:
+- `GET /api/alimentacao`
+- `POST /api/alimentacao/config`
+- `POST /api/alimentacao/movimento`
+- `GET /api/salvamento/status`
+- `POST /api/salvamento/google_sheets`
+- `POST /api/salvamento/restaurar_google_sheets`
+- `GET /api/salvamento/snapshot`
+- `POST /api/salvamento/restaurar_snapshot`
+
+Rotina recomendada:
+1. Use o app normalmente no dia a dia.
+2. Depois de grandes alteracoes, clique em `Salvar agora no Google Sheets`.
+3. No fechamento do mes, baixe o `snapshot JSON`.
+4. Se o Render reiniciar com banco vazio, restaure pelo Google Sheets.

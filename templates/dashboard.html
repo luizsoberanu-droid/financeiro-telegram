@@ -155,6 +155,39 @@
         .positive { color: var(--success); }
         .negative { color: var(--danger); }
         .warning { color: var(--warning); }
+        .metric-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 0.92em;
+        }
+        .metric-line strong { color: var(--text); }
+        .suggestion-box {
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 12px;
+            background: rgba(0,212,255,0.08);
+            border: 1px solid rgba(0,212,255,0.16);
+            color: var(--text);
+            line-height: 1.45;
+        }
+        .save-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .save-layer {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+        }
+        .save-layer h4 { color: var(--accent); margin-bottom: 8px; }
+        .save-layer p { color: var(--text-dim); line-height: 1.45; }
 
         /* Forms */
         .form-group { margin-bottom: 16px; }
@@ -450,6 +483,10 @@
                 <div class="icon">💸</div>
                 <div class="label">Lançar Gasto</div>
             </div>
+            <div class="quick-action-btn" onclick="showSection('alimentacao')">
+                <div class="icon">VA</div>
+                <div class="label">Cartao Alimentacao</div>
+            </div>
             <div class="quick-action-btn" onclick="showSection('contas')">
                 <div class="icon">📋</div>
                 <div class="label">Contas Fixas</div>
@@ -462,6 +499,10 @@
                 <div class="icon">📄</div>
                 <div class="label">Exportar PDF</div>
             </div>
+            <div class="quick-action-btn" onclick="showSection('salvamento')">
+                <div class="icon">SAVE</div>
+                <div class="label">Cofre</div>
+            </div>
         </div>
 
         <!-- Navigation -->
@@ -469,8 +510,10 @@
             <div class="nav-tab active" onclick="showSection('dashboard')">📊 Dashboard</div>
             <div class="nav-tab" onclick="showSection('contas')">📋 Contas</div>
             <div class="nav-tab" onclick="showSection('cartoes')">💳 Cartões</div>
+            <div class="nav-tab" onclick="showSection('alimentacao')">VA Alimentacao</div>
             <div class="nav-tab" onclick="showSection('gastos')">💸 Gastos</div>
             <div class="nav-tab" onclick="showSection('desejos')">🎯 Desejos</div>
+            <div class="nav-tab" onclick="showSection('salvamento')">Cofre</div>
             <div class="nav-tab" onclick="showSection('config')">⚙️ Config</div>
         </div>
 
@@ -492,6 +535,11 @@
                     <div class="value" id="reserva">Carregando...</div>
                     <div class="progress-bar"><div class="progress-fill" id="reserva-bar" style="width:0%"></div></div>
                     <p>Meta: R$ 12.000,00</p>
+                </div>
+                <div class="card">
+                    <h3>VA Cartao Alimentacao</h3>
+                    <div class="value" id="alimentacao-saldo-card">R$ 0,00</div>
+                    <p id="alimentacao-sugestao-card">Configure sua recarga para acompanhar melhor.</p>
                 </div>
                 <div class="card">
                     <h3>📊 Modo</h3>
@@ -543,6 +591,7 @@
                         <select id="quick-pag">
                             <option value="dinheiro">Dinheiro / Pix</option>
                             <option value="cartao">Cartão de Crédito</option>
+                            <option value="alimentacao">Cartao Alimentacao</option>
                         </select>
                     </div>
                 </div>
@@ -655,6 +704,76 @@
             </div>
         </div>
 
+        <!-- SECTION: CARTAO ALIMENTACAO -->
+        <div id="alimentacao" class="section">
+            <h2 class="section-title">VA Cartao Alimentacao</h2>
+
+            <div class="grid">
+                <div class="card">
+                    <h3>Saldo Disponivel</h3>
+                    <div class="value" id="alim-saldo">R$ 0,00</div>
+                    <div class="metric-line"><span>Recarga mensal</span><strong id="alim-recarga">R$ 0,00</strong></div>
+                    <div class="metric-line"><span>Proxima recarga</span><strong id="alim-proxima">-</strong></div>
+                    <div class="metric-line"><span>Status</span><strong id="alim-status">CONFIGURAR</strong></div>
+                    <div class="suggestion-box" id="alim-sugestao">Configure seu cartao alimentacao para acompanhar o saldo com clareza.</div>
+                </div>
+
+                <div class="card">
+                    <h3>Configurar Beneficio</h3>
+                    <div class="form-group">
+                        <label>Nome do cartao</label>
+                        <input type="text" id="alim-nome" placeholder="Ex: Alelo, Flash, VR">
+                    </div>
+                    <div class="two-cols">
+                        <div class="form-group">
+                            <label>Saldo atual (R$)</label>
+                            <input type="number" id="alim-saldo-input" placeholder="0,00" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>Recarga mensal (R$)</label>
+                            <input type="number" id="alim-recarga-input" placeholder="0,00" step="0.01">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Dia da recarga</label>
+                        <input type="number" id="alim-dia-input" min="1" max="31" value="1">
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarAlimentacaoConfig()">Salvar Cartao</button>
+                </div>
+
+                <div class="card">
+                    <h3>Registrar Uso ou Recarga</h3>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <select id="alim-tipo">
+                            <option value="debito">Uso / Compra</option>
+                            <option value="credito">Recarga</option>
+                            <option value="ajuste">Ajuste de saldo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Descricao</label>
+                        <input type="text" id="alim-desc" placeholder="Ex: mercado, almoco, recarga empresa">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor (R$)</label>
+                        <input type="number" id="alim-valor" placeholder="0,00" step="0.01">
+                    </div>
+                    <button class="btn btn-success" onclick="movimentarAlimentacao()">Registrar</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Historico do Cartao Alimentacao</h3>
+                <div class="table-container">
+                    <table id="tabela-alimentacao">
+                        <thead><tr><th>Data</th><th>Tipo</th><th>Descricao</th><th>Valor</th><th>Saldo apos</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- SECTION: GASTOS -->
         <div id="gastos" class="section">
             <h2 class="section-title">💸 Lançar Gastos</h2>
@@ -689,6 +808,7 @@
                         <select id="gasto-pag" onchange="toggleCartaoSelect()">
                             <option value="dinheiro">💵 Dinheiro / Pix</option>
                             <option value="cartao">💳 Cartão</option>
+                            <option value="alimentacao">VA Alimentacao</option>
                         </select>
                     </div>
                 </div>
@@ -772,6 +892,43 @@
                 <div id="analise-desejos" style="color:var(--text-dim);line-height:1.6;">
                     Adicione itens para ver a análise da IA.
                 </div>
+            </div>
+        </div>
+
+        <!-- SECTION: SALVAMENTO -->
+        <div id="salvamento" class="section">
+            <h2 class="section-title">Cofre de Salvamento</h2>
+
+            <div class="save-grid">
+                <div class="save-layer">
+                    <h4>Banco do dia a dia</h4>
+                    <p>SQLite guarda tudo que voce usa no painel e no Telegram.</p>
+                </div>
+                <div class="save-layer">
+                    <h4>Espelho permanente</h4>
+                    <p>Google Sheets replica suas tabelas principais e ajuda a restaurar quando o Render reinicia.</p>
+                </div>
+                <div class="save-layer">
+                    <h4>Snapshot portatil</h4>
+                    <p>Um JSON completo que voce pode baixar e guardar fora do app.</p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:20px;">
+                <h3>Status do Cofre</h3>
+                <div id="salvamento-status" style="color:var(--text-dim);line-height:1.7;">Carregando...</div>
+                <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="salvarGoogleSheets()">Salvar agora no Google Sheets</button>
+                    <button class="btn btn-outline" onclick="baixarSnapshot()">Baixar snapshot JSON</button>
+                    <button class="btn btn-warning" onclick="restaurarGoogleSheets()">Restaurar do Google Sheets</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Regra simples para usar para sempre</h3>
+                <p style="color:var(--text-dim);line-height:1.7;">
+                    Use o app no dia a dia, salve no Google Sheets quando fizer mudancas importantes e baixe um snapshot JSON no fechamento de cada mes. Assim voce fica com tres camadas: uso rapido, backup online e copia pessoal.
+                </p>
             </div>
         </div>
 
@@ -908,8 +1065,10 @@
             if (id === 'dashboard') loadDashboard();
             if (id === 'contas') loadContas();
             if (id === 'cartoes') loadCartoes();
+            if (id === 'alimentacao') loadAlimentacao();
             if (id === 'gastos') { loadCartoesSelect(); loadGastos(); }
             if (id === 'desejos') loadDesejos();
+            if (id === 'salvamento') loadSalvamento();
             if (id === 'config') loadConfig();
         }
 
@@ -938,7 +1097,7 @@
                 try { data = txt ? JSON.parse(txt) : {}; } catch(e) { data = { raw: txt }; }
                 if (!res.ok) {
                     console.error('API erro', url, res.status, data);
-                    showToast('Erro na API ' + url + ': ' + res.status, 'error');
+                    showToast(data.sugestao || data.erro || ('Erro na API ' + url + ': ' + res.status), 'error');
                     return null;
                 }
                 return data;
@@ -947,6 +1106,17 @@
                 showToast('Erro: ' + e.message, 'error');
                 return null;
             }
+        }
+
+        function fmtMoney(valor) {
+            valor = Number(valor || 0);
+            return 'R$ ' + valor.toFixed(2).replace('.', ',');
+        }
+
+        function fmtDate(data) {
+            if (!data) return '-';
+            try { return new Date(data).toLocaleDateString('pt-BR'); }
+            catch(e) { return '-'; }
         }
 
         // ==================== DASHBOARD ====================
@@ -963,6 +1133,14 @@
                     if (modo === 'recuperacao') { badge.textContent = 'FOCO EM DIVIDAS'; badge.className = 'badge badge-danger'; }
                     else if (modo === 'reserva') { badge.textContent = 'CONSTRUINDO RESERVA'; badge.className = 'badge badge-warning'; }
                     else { badge.textContent = 'CRESCIMENTO'; badge.className = 'badge badge-success'; }
+                    var alim = status.cartao_alimentacao || {};
+                    var alimSaldoEl = document.getElementById('alimentacao-saldo-card');
+                    var alimSugEl = document.getElementById('alimentacao-sugestao-card');
+                    if (alimSaldoEl) {
+                        alimSaldoEl.textContent = fmtMoney(alim.saldo_atual || 0);
+                        alimSaldoEl.className = 'value ' + ((alim.saldo_atual || 0) > 0 ? 'positive' : 'warning');
+                    }
+                    if (alimSugEl) alimSugEl.textContent = alim.sugestao || 'Configure sua recarga para acompanhar melhor.';
                 }
 
                 var div = await api('/api/dividas');
@@ -1118,6 +1296,85 @@
             if (el) el.style.display = this.value === 'cartao' ? 'block' : 'none';
         });
 
+        // ==================== CARTAO ALIMENTACAO ====================
+        async function loadAlimentacao() {
+            var res = await api('/api/alimentacao');
+            if (!res || !res.cartao) return;
+
+            var card = res.cartao;
+            var saldoEl = document.getElementById('alim-saldo');
+            if (saldoEl) {
+                saldoEl.textContent = fmtMoney(card.saldo_atual);
+                saldoEl.className = 'value ' + ((card.saldo_atual || 0) > 0 ? 'positive' : 'warning');
+            }
+            var nomeInput = document.getElementById('alim-nome');
+            var saldoInput = document.getElementById('alim-saldo-input');
+            var recargaInput = document.getElementById('alim-recarga-input');
+            var diaInput = document.getElementById('alim-dia-input');
+            if (nomeInput) nomeInput.value = card.nome || '';
+            if (saldoInput) saldoInput.value = card.saldo_atual || 0;
+            if (recargaInput) recargaInput.value = card.recarga_mensal || 0;
+            if (diaInput) diaInput.value = card.dia_recarga || 1;
+
+            var recargaEl = document.getElementById('alim-recarga');
+            var proximaEl = document.getElementById('alim-proxima');
+            var statusEl = document.getElementById('alim-status');
+            var sugestaoEl = document.getElementById('alim-sugestao');
+            if (recargaEl) recargaEl.textContent = fmtMoney(card.recarga_mensal);
+            if (proximaEl) proximaEl.textContent = 'em ' + card.dias_ate_recarga + ' dia(s)';
+            if (statusEl) statusEl.textContent = String(card.status || 'configurar').toUpperCase();
+            if (sugestaoEl) sugestaoEl.textContent = card.sugestao || '';
+
+            var tbody = document.querySelector('#tabela-alimentacao tbody');
+            if (tbody) {
+                if (!res.movimentos || !res.movimentos.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#888">Nenhum movimento ainda</td></tr>';
+                } else {
+                    tbody.innerHTML = res.movimentos.map(function(m) {
+                        var tipo = m.tipo === 'credito' ? 'Recarga' : (m.tipo === 'ajuste' ? 'Ajuste' : 'Uso');
+                        var cls = m.tipo === 'debito' ? 'negative' : 'positive';
+                        return '<tr>' +
+                            '<td>' + fmtDate(m.created_at) + '</td>' +
+                            '<td>' + tipo + '</td>' +
+                            '<td>' + m.descricao + '</td>' +
+                            '<td class="' + cls + '">' + fmtMoney(m.valor) + '</td>' +
+                            '<td>' + fmtMoney(m.saldo_apos) + '</td>' +
+                        '</tr>';
+                    }).join('');
+                }
+            }
+        }
+
+        async function salvarAlimentacaoConfig() {
+            var body = {
+                nome: document.getElementById('alim-nome').value,
+                saldo_atual: parseFloat(document.getElementById('alim-saldo-input').value) || 0,
+                recarga_mensal: parseFloat(document.getElementById('alim-recarga-input').value) || 0,
+                dia_recarga: parseInt(document.getElementById('alim-dia-input').value) || 1
+            };
+            var res = await api('/api/alimentacao/config', 'POST', body);
+            if (res && res.ok) {
+                showToast('Cartao alimentacao salvo!');
+                loadAlimentacao();
+                loadDashboard();
+            }
+        }
+
+        async function movimentarAlimentacao() {
+            var tipo = document.getElementById('alim-tipo').value;
+            var desc = document.getElementById('alim-desc').value;
+            var valor = parseFloat(document.getElementById('alim-valor').value);
+            if (!valor || valor <= 0) { showToast('Informe um valor valido.', 'error'); return; }
+            var res = await api('/api/alimentacao/movimento', 'POST', { tipo: tipo, descricao: desc, valor: valor });
+            if (res && res.ok) {
+                showToast('Movimento registrado!');
+                document.getElementById('alim-desc').value = '';
+                document.getElementById('alim-valor').value = '';
+                loadAlimentacao();
+                loadDashboard();
+            }
+        }
+
         // ==================== GASTOS ====================
         async function lancarRapido() {
             var desc = document.getElementById('quick-desc').value;
@@ -1126,6 +1383,16 @@
             var pag = document.getElementById('quick-pag').value;
             var cartao = pag === 'cartao' ? document.getElementById('quick-cartao').value : null;
             if (!desc || !valor) { showToast('Preencha descricao e valor!', 'error'); return; }
+            if (pag === 'alimentacao') {
+                var alim = await api('/api/alimentacao/movimento', 'POST', { tipo: 'debito', descricao: desc, valor: valor });
+                if (alim && alim.ok) {
+                    showToast('Uso no alimentacao: ' + fmtMoney(valor));
+                    document.getElementById('quick-desc').value = '';
+                    document.getElementById('quick-valor').value = '';
+                    loadDashboard();
+                }
+                return;
+            }
             var body = { descricao: desc, valor: valor, forma_pagamento: pag };
             if (cartao) body.cartao = cartao;
             if (cat) body.categoria = cat;
@@ -1145,6 +1412,17 @@
             var pag = document.getElementById('gasto-pag').value;
             var cartao = pag === 'cartao' ? document.getElementById('gasto-cartao').value : null;
             if (!desc || !valor) { showToast('Preencha descricao e valor!', 'error'); return; }
+            if (pag === 'alimentacao') {
+                var alim = await api('/api/alimentacao/movimento', 'POST', { tipo: 'debito', descricao: desc, valor: valor });
+                if (alim && alim.ok) {
+                    showToast('Uso no alimentacao registrado!');
+                    document.getElementById('gasto-desc').value = '';
+                    document.getElementById('gasto-valor').value = '';
+                    loadAlimentacao();
+                    loadDashboard();
+                }
+                return;
+            }
             var body = { descricao: desc, valor: valor, forma_pagamento: pag, categoria: cat };
             if (cartao) body.cartao = cartao;
             var res = await api('/api/lancar', 'POST', body);
@@ -1303,6 +1581,48 @@ async function deleteDesejo(id) {
                 desejos = desejos.filter(function(d) { return d.id !== id; });
                 showToast('Removido');
                 await loadDesejos();
+            }
+        }
+
+        // ==================== SALVAMENTO ====================
+        async function loadSalvamento() {
+            var res = await api('/api/salvamento/status');
+            var el = document.getElementById('salvamento-status');
+            if (!res || !el) return;
+            var linhas = [
+                '<div class="metric-line"><span>Total de registros</span><strong>' + res.total_registros + '</strong></div>',
+                '<div class="metric-line"><span>Versao do snapshot</span><strong>' + res.snapshot_version + '</strong></div>',
+                '<div class="suggestion-box">' + res.sugestao + '</div>'
+            ];
+            if (res.tabelas) {
+                linhas.push('<div style="margin-top:14px;color:var(--text-dim);">Tabelas: ' + Object.keys(res.tabelas).map(function(k) { return k + ' (' + res.tabelas[k] + ')'; }).join(', ') + '</div>');
+            }
+            el.innerHTML = linhas.join('');
+        }
+
+        async function salvarGoogleSheets() {
+            showToast('Salvando no Google Sheets...', 'info');
+            var res = await api('/api/salvamento/google_sheets', 'POST', {});
+            if (res && res.ok) {
+                showToast('Backup salvo no Google Sheets!');
+                loadSalvamento();
+            } else if (res) {
+                showToast(res.reason || 'Google Sheets ainda nao configurado.', 'error');
+            }
+        }
+
+        function baixarSnapshot() {
+            showToast('Preparando snapshot JSON...', 'info');
+            window.open('/api/salvamento/snapshot', '_blank');
+        }
+
+        async function restaurarGoogleSheets() {
+            if (!confirm('Restaurar do Google Sheets vai substituir os dados atuais pelo backup. Continuar?')) return;
+            var res = await api('/api/salvamento/restaurar_google_sheets', 'POST', {});
+            if (res && res.ok) {
+                showToast('Dados restaurados!');
+                loadDashboard();
+                loadSalvamento();
             }
         }
 
@@ -1594,6 +1914,8 @@ async function deleteDesejo(id) {
         document.addEventListener('DOMContentLoaded', function() {
             loadDashboard();
             loadCartoesSelect();
+            loadAlimentacao();
+            loadSalvamento();
             loadGraficos();
         });
         </script>

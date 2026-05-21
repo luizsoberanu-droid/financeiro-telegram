@@ -8,6 +8,7 @@ from utils.helpers import month_key
 from sqlalchemy.orm import Session
 from datetime import datetime
 from io import BytesIO
+import json
 
 api_bp = Blueprint('api', __name__)
 
@@ -273,6 +274,43 @@ def api_reserva():
     finally:
         db.close()
 
+
+# ==================== CARTAO ALIMENTACAO ====================
+@api_bp.route('/alimentacao')
+def api_alimentacao():
+    db = get_db_session()
+    try:
+        from services.benefit_service import BenefitCardService
+        return jsonify(BenefitCardService(db).resumo())
+    finally:
+        db.close()
+
+@api_bp.route('/alimentacao/config', methods=['POST'])
+def api_alimentacao_config():
+    db = get_db_session()
+    try:
+        from services.benefit_service import BenefitCardService
+        p = request.get_json() or {}
+        return jsonify(BenefitCardService(db).configurar(p))
+    finally:
+        db.close()
+
+@api_bp.route('/alimentacao/movimento', methods=['POST'])
+def api_alimentacao_movimento():
+    db = get_db_session()
+    try:
+        from services.benefit_service import BenefitCardService
+        p = request.get_json() or {}
+        result = BenefitCardService(db).movimentar(
+            p.get("tipo", "debito"),
+            p.get("valor", 0),
+            p.get("descricao")
+        )
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
+    finally:
+        db.close()
+
 # ==================== PLANO ====================
 @api_bp.route('/plano')
 def api_plano():
@@ -370,6 +408,20 @@ def api_relatorio_html():
         html_bytes = svc.gerar_relatorio_mensal(mes_ref)
 
         return html_bytes, 200, {'Content-Type': 'text/html; charset=utf-8'}
+    finally:
+        db.close()
+
+@api_bp.route('/relatorio/gerar', methods=['POST'])
+def api_relatorio_telegram():
+    db = get_db_session()
+    try:
+        p = request.get_json() or {}
+        chat_id = p.get("chat_id", "default")
+        mes_ref = datetime.now().strftime("%Y-%m")
+        link = request.host_url.rstrip("/") + "/api/relatorio/pdf?mes=" + mes_ref
+        from services.alert_service import telegram_send
+        ok, detail = telegram_send(chat_id, "Relatorio mensal pronto para baixar:\n" + link)
+        return jsonify({"ok": bool(ok), "detail": detail, "link": link})
     finally:
         db.close()
 
@@ -493,6 +545,63 @@ def api_restore_google_sheets():
     try:
         from services.sheets_backup_service import SheetsBackupService
         return jsonify(SheetsBackupService(db).restore_all(replace=True))
+    finally:
+        db.close()
+
+
+# ==================== COFRE DE SALVAMENTO ====================
+@api_bp.route('/salvamento/status')
+def api_salvamento_status():
+    db = get_db_session()
+    try:
+        from services.save_vault_service import SaveVaultService
+        return jsonify(SaveVaultService(db).status())
+    finally:
+        db.close()
+
+@api_bp.route('/salvamento/google_sheets', methods=['POST'])
+def api_salvamento_google_sheets():
+    db = get_db_session()
+    try:
+        from services.sheets_backup_service import SheetsBackupService
+        return jsonify(SheetsBackupService(db).backup_all())
+    finally:
+        db.close()
+
+@api_bp.route('/salvamento/restaurar_google_sheets', methods=['POST'])
+def api_salvamento_restaurar_google_sheets():
+    db = get_db_session()
+    try:
+        from services.sheets_backup_service import SheetsBackupService
+        return jsonify(SheetsBackupService(db).restore_all(replace=True))
+    finally:
+        db.close()
+
+@api_bp.route('/salvamento/snapshot')
+def api_salvamento_snapshot():
+    db = get_db_session()
+    try:
+        from services.save_vault_service import SaveVaultService
+        payload = SaveVaultService(db).snapshot()
+        raw = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        filename = "nexus_snapshot_" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".json"
+        return send_file(
+            BytesIO(raw),
+            mimetype='application/json',
+            as_attachment=True,
+            download_name=filename
+        )
+    finally:
+        db.close()
+
+@api_bp.route('/salvamento/restaurar_snapshot', methods=['POST'])
+def api_salvamento_restaurar_snapshot():
+    db = get_db_session()
+    try:
+        from services.save_vault_service import SaveVaultService
+        p = request.get_json() or {}
+        snapshot = p.get("snapshot", p)
+        return jsonify(SaveVaultService(db).restore_snapshot(snapshot, replace=bool(p.get("replace", True))))
     finally:
         db.close()
 

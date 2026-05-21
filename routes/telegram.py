@@ -315,9 +315,51 @@ def telegram_webhook():
             telegram_send(chat_id, "\n".join(lines))
             return jsonify({"ok": True})
 
+        if msg_lower in ["alimentacao", "/alimentacao", "cartao alimentacao", "cartao alimentação", "va", "vr"]:
+            from services.benefit_service import BenefitCardService
+            data_alim = BenefitCardService(db).resumo()
+            card = data_alim["cartao"]
+            reply = (
+                f"CARTAO ALIMENTACAO\n"
+                f"Saldo: R$ {card['saldo_atual']:.2f}\n"
+                f"Recarga mensal: R$ {card['recarga_mensal']:.2f}\n"
+                f"Proxima recarga: em {card['dias_ate_recarga']} dia(s)\n"
+                f"Status: {card['status'].upper()}\n\n"
+                f"Sugestao: {card['sugestao']}"
+            )
+            telegram_send(chat_id, reply)
+            return jsonify({"ok": True})
+
+        if msg_lower.startswith(("alimentacao ", "/alimentacao ", "va ", "vr ")):
+            try:
+                parts_alim = msg_lower.replace("/", "").split()
+                tipo = "debito"
+                valor_index = 1
+                if len(parts_alim) > 2 and parts_alim[1] in ["recarga", "recarregar", "credito", "creditar"]:
+                    tipo = "credito"
+                    valor_index = 2
+                valor = float(parts_alim[valor_index].replace(",", "."))
+                desc = " ".join(parts_alim[valor_index + 1:]) or ("recarga" if tipo == "credito" else "uso")
+
+                from services.benefit_service import BenefitCardService
+                result = BenefitCardService(db).movimentar(tipo, valor, desc)
+                if not result.get("ok"):
+                    telegram_send(chat_id, result.get("sugestao") or "Nao consegui registrar no cartao alimentacao.")
+                    return jsonify({"ok": True})
+
+                backup_sheets_silencioso(db)
+                card = result["cartao"]
+                acao = "Recarga registrada" if tipo == "credito" else "Uso registrado"
+                telegram_send(chat_id, f"{acao}: R$ {valor:.2f}\nSaldo alimentacao: R$ {card['saldo_atual']:.2f}\n{card['sugestao']}")
+                return jsonify({"ok": True})
+            except Exception:
+                telegram_send(chat_id, "Use: alimentacao 25 mercado\nOu: alimentacao recarga 700")
+                return jsonify({"ok": True})
+
         if msg_lower in ["status", "/status"]:
             tools = FinancialTools(db)
             s = tools.get_saldo_atual()
+            alimentacao = s.get("cartao_alimentacao") or {}
             reply = (
                 f"📊 STATUS ATUAL\n"
                 f"Receita: R$ {s['receita_total']:.2f}\n"
@@ -325,6 +367,7 @@ def telegram_webhook():
                 f"Parcelas: R$ {s.get('parcelas_mes', 0):.2f}\n"
                 f"Contas: R$ {s.get('contas_pendentes', 0):.2f}\n"
                 f"Saldo: R$ {s['saldo_projetado']:.2f}\n"
+                f"Alimentacao: R$ {alimentacao.get('saldo_atual', 0):.2f}\n"
                 f"Dívida ajustada: R$ {s.get('divida_total', 0):.2f}"
             )
             telegram_send(chat_id, reply)
@@ -405,6 +448,19 @@ def telegram_webhook():
             from services.sheets_backup_service import SheetsBackupService
             result = SheetsBackupService(db).backup_all()
             telegram_send(chat_id, "Backup Google Sheets: " + ("OK" if result.get("ok") else str(result)))
+            return jsonify({"ok": True})
+
+        if msg_lower in ["salvamento", "/salvamento", "cofre", "/cofre"]:
+            from services.save_vault_service import SaveVaultService
+            status_save = SaveVaultService(db).status()
+            telegram_send(
+                chat_id,
+                "COFRE NEXUS\n"
+                f"Registros protegidos: {status_save['total_registros']}\n"
+                "Camadas: SQLite + Google Sheets + Snapshot JSON\n\n"
+                f"Sugestao: {status_save['sugestao']}\n"
+                "No painel, abra Salvamento para baixar snapshot ou restaurar."
+            )
             return jsonify({"ok": True})
 
         if msg_lower.startswith("pagar ") or msg_lower.startswith("/pagar "):

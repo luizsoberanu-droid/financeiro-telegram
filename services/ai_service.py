@@ -112,6 +112,14 @@ TOOLS = [
             "description": "Retorna status da reserva de emergencia: atual, meta, falta, sugestao mensal de poupanca, e prazo estimado.",
             "parameters": {"type": "object", "properties": {}}
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_cartao_alimentacao",
+            "description": "Retorna saldo, recarga mensal, dias ate recarga, status e sugestao de uso do cartao alimentacao.",
+            "parameters": {"type": "object", "properties": {}}
+        }
     }
 ]
 
@@ -142,6 +150,7 @@ SYSTEM_PROMPT = """Voce e o NEXUS, um analista financeiro pessoal de elite com 2
 8. Seja PROATIVO: sugira acoes mesmo sem o usuario pedir
 9. Use linguagem simples, evite jargoes financeiros complexos
 10. Termine com uma ACAO CONCRETA para o proximo passo
+11. Quando o assunto for mercado, comida, almoco ou refeicao, considere tambem o saldo do cartao alimentacao.
 
 📊 FORMATO DE RESPOSTA:
 • Comece com a DECISAO direta (SIM / NAO / TALVEZ)
@@ -193,6 +202,12 @@ class FinancialTools:
         divida_bruta = sum(d.valor for d in dividas)
         divida_ajustada = max(divida_bruta - saldo, 0)
 
+        try:
+            from services.benefit_service import BenefitCardService
+            alimentacao = BenefitCardService(self.db).resumo().get("cartao", {})
+        except Exception:
+            alimentacao = {}
+
         return {
             "receita_total": round(receita_total, 2),
             "receita_fixa": round(config.receita_fixa or 0, 2),
@@ -205,7 +220,8 @@ class FinancialTools:
             "reserva_atual": round(config.reserva_atual or 0, 2),
             "meta_reserva": round(config.meta_reserva or 0, 2),
             "divida_bruta": round(divida_bruta, 2),
-            "divida_total": round(divida_ajustada, 2)
+            "divida_total": round(divida_ajustada, 2),
+            "cartao_alimentacao": alimentacao
         }
 
     def get_analise_dividas(self):
@@ -427,6 +443,10 @@ class FinancialTools:
             "status": "COMPLETA" if faltante <= 0 else "EM_CONSTRUCAO"
         }
 
+    def get_cartao_alimentacao(self):
+        from services.benefit_service import BenefitCardService
+        return BenefitCardService(self.db).resumo()
+
 # =========================
 # MOTOR DE IA
 # =========================
@@ -444,6 +464,7 @@ class NexusAI:
             "get_contas_proximas_vencimento": self.tools.get_contas_proximas_vencimento,
             "get_plano_mensal": self.tools.get_plano_mensal,
             "get_reserva_status": self.tools.get_reserva_status,
+            "get_cartao_alimentacao": self.tools.get_cartao_alimentacao,
         }
 
     def get_chat_history(self, chat_id: str, limit: int = 10) -> List[Dict]:
