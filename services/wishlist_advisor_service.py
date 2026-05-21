@@ -1,5 +1,6 @@
 import re
 import requests
+import math
 from statistics import median
 
 PRIORIDADES = {
@@ -132,6 +133,10 @@ class WishlistAdvisorService:
 
         faturas = self._faturas_futuras_cartao(6)
         maior_fatura_futura = max(faturas.values()) if faturas else 0
+        from services.card_limit_service import CardLimitService
+        limites_cartao = CardLimitService(self.db).resumo_limites()
+        disponivel_seguro_mes = limites_cartao.get("disponivel_seguro_mes", 0)
+        maior_disponivel_real = max([c.get("disponivel_real", 0) for c in limites_cartao.get("cartoes", [])], default=0)
 
         linhas = []
         linhas.append("🧠 ANÁLISE DE DESEJO — DISCIPLINA PESADA")
@@ -156,6 +161,9 @@ class WishlistAdvisorService:
         linhas.append(f"- Saldo projetado: R$ {saldo_proj:.2f}")
         linhas.append(f"- Dívida ajustada: R$ {divida:.2f}")
         linhas.append(f"- Maior fatura futura já prevista: R$ {maior_fatura_futura:.2f}")
+        linhas.append(f"- Limite seguro de cartao ainda disponivel no mes: R$ {disponivel_seguro_mes:.2f}")
+        if limites_cartao.get("limite_total_real", 0) > 0:
+            linhas.append(f"- Maior limite real disponivel em um cartao: R$ {maior_disponivel_real:.2f}")
         linhas.append("")
 
         if preco <= 0:
@@ -176,7 +184,7 @@ class WishlistAdvisorService:
         for n in range(2, 13):
             parcela = preco / n
             impacto = maior_fatura_futura + parcela
-            if parcela <= limite_parcela_segura and (saldo_proj - parcela) > 0:
+            if parcela <= limite_parcela_segura and parcela <= max(disponivel_seguro_mes, limite_parcela_segura) and (saldo_proj - parcela) > 0:
                 opcoes.append((n, parcela, impacto))
 
         linhas.append("")
@@ -195,6 +203,17 @@ class WishlistAdvisorService:
             linhas.append(f"Plano recomendado: {n}x de aproximadamente R$ {parcela:.2f}")
             linhas.append(f"Fatura futura estimada com esse item: R$ {impacto:.2f}")
             linhas.append("Condição: só comprar se não houver conta atrasada e se não estourar o limite ideal do cartão.")
+
+        linhas.append("")
+        linhas.append("Quando posso comprar:")
+        if divida > 0 and prioridade != "alta":
+            linhas.append("Depois de reduzir ou quitar as dividas ativas. Hoje esse item compete com sua recuperacao financeira.")
+        elif preco > 0 and saldo_proj >= preco and prioridade == "alta":
+            linhas.append("Pode avaliar ainda neste mes, desde que a compra nao reduza a reserva nem use limite acima do seguro.")
+        elif preco > 0:
+            base_aporte = max(disponivel_seguro_mes, saldo_proj * 0.5, renda * 0.05, 1)
+            meses = max(math.ceil(max(preco - max(saldo_proj, 0), 0) / base_aporte), 1)
+            linhas.append(f"Planeje para daqui a aproximadamente {meses} mes(es), guardando perto de R$ {min(base_aporte, preco):.2f}/mes e reavaliando a fatura.")
 
         linhas.append("")
         linhas.append("Ranking de prioridade:")

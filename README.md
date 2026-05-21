@@ -52,12 +52,12 @@ Assistente financeiro pessoal com **Inteligência Artificial REAL**, **alertas a
 3. Contém: resumo, contas, gastos, dívidas, recomendações da IA
 
 ### Automaticamente:
-- Todo **último dia do mês às 20h**, um relatório é gerado
-- Você recebe alerta no Telegram
+- Relatorios e alertas do Telegram ficam desligados por padrao.
+- Para reativar programacoes, configure `TELEGRAM_AUTOMATIONS_ENABLED=true`.
 
 ### No Telegram:
-- Digite: `/relatorio`
-- O bot envia o link do relatório
+- Converse com a IA para revisar o fechamento do mes.
+- Para baixar o PDF, use o painel web.
 
 ---
 
@@ -78,7 +78,7 @@ Assistente financeiro pessoal com **Inteligência Artificial REAL**, **alertas a
 
 ### Testar alertas:
 - No painel, clique em **"🔔 Testar Alerta"**
-- Ou no Telegram: `/alertas`
+- No Telegram, peça em linguagem natural para a IA verificar alertas.
 
 ---
 
@@ -99,21 +99,17 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<APP>.onrender.com/we
 
 ---
 
-## 🤖 COMANDOS DO TELEGRAM
+## 🤖 TELEGRAM COM IA CONVERSACIONAL
 
-| Comando | Descrição |
-|---------|-----------|
-| `status` | Situação financeira |
-| `contas` | Listar contas |
-| `dividas` | Ver dívidas |
-| `reserva` | Status da reserva |
-| `plano` | Plano mensal |
-| `alertas` | Verificar alertas |
-| `relatorio` | Gerar relatório PDF |
-| `pagar [nome]` | Marcar conta paga |
-| `extra [valor]` | Registrar renda extra |
-| `[desc] [valor]` | Lançar gasto rápido |
-| Qualquer texto | **IA analisa e responde!** |
+O Telegram nao depende mais de comandos fixos. A IA entende a intencao, pergunta o que faltar e salva no banco quando for uma acao financeira.
+
+| Exemplo | O que acontece |
+|---------|----------------|
+| `lanche 25` | Pergunta se foi dinheiro/pix/debito ou cartao e salva o lancamento |
+| `meu limite do Nubank e R$ 5000` | Registra o limite real do cartao |
+| `quanto posso gastar no cartao este mes?` | Mostra limite real, limite seguro, uso e disponivel |
+| `quero comprar celular de R$ 2500` | Salva na lista de desejos e analisa quando pode comprar |
+| Qualquer texto | A IA analisa sua renda, dividas, reserva e estrategia |
 
 ---
 
@@ -192,7 +188,7 @@ Endpoints:
 - `POST /api/historico_mensal/atualizar`
 
 Telegram:
-- `historico`
+- Pergunte em linguagem natural pelo historico mensal.
 
 
 
@@ -219,11 +215,7 @@ Novidades desta melhoria:
 - Saldo do cartao alimentacao no dashboard principal.
 - Aba dedicada para configurar saldo, recarga mensal e dia de recarga.
 - Registro de uso, recarga e ajuste do cartao alimentacao sem baguncar o saldo em dinheiro.
-- Comandos no Telegram:
-  - `alimentacao` ou `va`: mostra saldo, status e sugestao.
-  - `alimentacao 25 mercado`: registra uso de R$ 25.
-  - `alimentacao recarga 700`: registra recarga.
-  - `cofre` ou `salvamento`: mostra o plano de protecao dos dados.
+- No Telegram conversacional, pergunte sobre saldo do cartao alimentacao ou salvamento para a IA consultar e orientar.
 - Aba `Cofre` no painel com tres camadas:
   - SQLite para uso diario.
   - Google Sheets como espelho permanente.
@@ -265,3 +257,9 @@ Novas capacidades da IA:
 - analise de compra parcelada com impacto na fatura e na meta;
 - radar de mercado com indices, dolar, ETFs e acoes brasileiras via cotacoes publicas;
 - orientacao de investimento com risco, prazo, liquidez e diversificacao, sem promessa de retorno.
+
+Integracoes conversacionais no Telegram:
+- `lanche 25` ou `comprei lanche de R$ 25`: a IA pergunta se foi dinheiro/pix/debito ou cartao e salva o lancamento.
+- `meu limite do Nubank e R$ 5000`: registra o limite real do cartao.
+- `quanto posso gastar no cartao este mes?`: mostra limite real, limite seguro mensal, uso atual e disponivel.
+- `quero comprar celular de R$ 2500`: adiciona na lista de desejos e analisa quando pode comprar.

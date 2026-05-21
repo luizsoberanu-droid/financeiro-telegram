@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -38,6 +38,7 @@ class Cartao(Base):
     nome = Column(String, nullable=False)
     vencimento = Column(Integer, nullable=False)
     melhor_dia_compra = Column(Integer, nullable=False)
+    limite_real = Column(Float, default=0.0)
     limite_ideal = Column(Float, default=200.0)
     pago = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -173,6 +174,7 @@ def init_db():
     Base.metadata.create_all(engine, checkfirst=True)
 
     session = SessionLocal()
+    _ensure_schema(session)
 
     # Seed inicial se estiver vazio
     if session.query(Config).first() is None:
@@ -223,6 +225,17 @@ def init_db():
     session.commit()
     session.close()
     print("✅ Banco de dados inicializado com dados padrão")
+
+def _ensure_schema(session):
+    inspector = inspect(engine)
+    tabelas = inspector.get_table_names()
+    if "cartoes" not in tabelas:
+        return
+
+    colunas_cartoes = {c["name"] for c in inspector.get_columns("cartoes")}
+    if "limite_real" not in colunas_cartoes:
+        session.execute(text("ALTER TABLE cartoes ADD COLUMN limite_real FLOAT DEFAULT 0"))
+        session.commit()
 
 def get_db():
     db = SessionLocal()

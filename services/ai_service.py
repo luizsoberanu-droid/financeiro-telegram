@@ -126,6 +126,14 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_limites_cartao",
+            "description": "Retorna limite real informado, limite seguro mensal calculado pela renda, uso atual e disponivel dos cartoes.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_visao_patrimonial",
             "description": "Retorna diagnostico patrimonial com renda, saldo, divida, reserva, capacidade mensal e fase financeira.",
             "parameters": {"type": "object", "properties": {}}
@@ -214,6 +222,7 @@ SYSTEM_PROMPT = """Voce e o NEXUS, analista patrimonial e estrategista financeir
 13. Quando falar de acoes, fundos ou ETFs, use o radar de mercado quando possivel e trate como lista de estudo, nao ordem de compra.
 14. Para metas grandes, como casa de R$ 1.000.000, transforme sonho em plano: entrada, prazo, aporte mensal, renda necessaria e cortes.
 15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar.
+16. Quando o assunto for cartao de credito, consulte limite real, limite seguro mensal e uso atual antes de liberar gasto.
 
 📊 FORMATO DE RESPOSTA:
 • Comece com a DECISAO direta (SIM / NAO / TALVEZ)
@@ -510,6 +519,10 @@ class FinancialTools:
         from services.benefit_service import BenefitCardService
         return BenefitCardService(self.db).resumo()
 
+    def get_limites_cartao(self):
+        from services.card_limit_service import CardLimitService
+        return CardLimitService(self.db).resumo_limites()
+
     def get_visao_patrimonial(self):
         saldo = self.get_saldo_atual()
         dividas = self.get_analise_dividas()
@@ -598,6 +611,9 @@ class FinancialTools:
             Lancamento.mes_ref == mes_atual
         ).all())
         fatura_estimativa = round(parcelas_mes + cartao_mes + valor_parcela, 2)
+        limites_cartao = self.get_limites_cartao()
+        cartoes_com_limite = [c for c in limites_cartao.get("cartoes", []) if c.get("limite_real", 0) > 0]
+        maior_disponivel_real = max([c.get("disponivel_real", 0) for c in cartoes_com_limite], default=0)
 
         renda = saldo.get("receita_total", 0)
         limite_parcela = max(renda * 0.05, 100) if dividas.get("total_divida", 0) > 0 else max(renda * 0.08, 150)
@@ -616,6 +632,12 @@ class FinancialTools:
         if valor_parcela > limite_parcela:
             aprovado = False
             motivos.append(f"Parcela acima do limite seguro de R$ {limite_parcela:.2f}.")
+        if cartoes_com_limite and valor > maior_disponivel_real:
+            aprovado = False
+            motivos.append(f"O valor total passa do maior limite real disponivel em um cartao: R$ {maior_disponivel_real:.2f}.")
+        if valor_parcela > limites_cartao.get("disponivel_seguro_mes", 0) and limites_cartao.get("limite_total_seguro_mes", 0) > 0:
+            aprovado = False
+            motivos.append(f"A parcela passa do limite seguro ainda disponivel no mes: R$ {limites_cartao.get('disponivel_seguro_mes', 0):.2f}.")
         if dividas.get("total_divida", 0) > 0 and prioridade != "alta":
             aprovado = False
             motivos.append("Existe divida ativa e o item nao parece essencial.")
@@ -632,6 +654,8 @@ class FinancialTools:
             "saldo_apos_primeira_parcela": round(saldo_apos_parcela, 2),
             "fatura_mes_estimada_com_compra": fatura_estimativa,
             "limite_parcela_segura": round(limite_parcela, 2),
+            "limite_cartao": limites_cartao,
+            "maior_disponivel_real_cartao": round(maior_disponivel_real, 2),
             "recomendacao": "APROVADO_COM_CONTROLE" if aprovado else "NAO_COMPRAR_AGORA",
             "motivos": motivos or ["Cabe no orcamento atual, mas ainda precisa respeitar reserva e meta patrimonial."],
         }
@@ -665,6 +689,7 @@ class NexusAI:
             "get_plano_mensal": self.tools.get_plano_mensal,
             "get_reserva_status": self.tools.get_reserva_status,
             "get_cartao_alimentacao": self.tools.get_cartao_alimentacao,
+            "get_limites_cartao": self.tools.get_limites_cartao,
             "get_visao_patrimonial": self.tools.get_visao_patrimonial,
             "planejar_meta_patrimonial": self.tools.planejar_meta_patrimonial,
             "analisar_compra_parcelada": self.tools.analisar_compra_parcelada,

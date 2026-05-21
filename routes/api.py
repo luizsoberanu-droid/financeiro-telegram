@@ -86,11 +86,7 @@ def api_cartoes():
         except Exception as e:
             print(f"Aviso: limite ideal não recalculado: {e}")
 
-        cartoes = db.query(Cartao).all()
-        return jsonify([{
-            "id": c.id, "nome": c.nome, "vencimento": c.vencimento,
-            "melhor_dia_compra": c.melhor_dia_compra, "limite_ideal": c.limite_ideal, "pago": c.pago
-        } for c in cartoes])
+        return jsonify(CardLimitService(db).resumo_limites().get("cartoes", []))
     finally:
         db.close()
 
@@ -104,10 +100,16 @@ def api_add_cartao():
             nome=p["nome"],
             vencimento=int(p["vencimento"]),
             melhor_dia_compra=int(p["melhor_dia_compra"]),
+            limite_real=float(p.get("limite_real", p.get("limite_ideal", 0))),
             limite_ideal=float(p.get("limite_ideal", 200))
         )
         db.add(cart)
         db.commit()
+        try:
+            from services.card_limit_service import CardLimitService
+            CardLimitService(db).atualizar_limites_cartoes()
+        except Exception as e:
+            print(f"Aviso: limite ideal nao recalculado apos criar cartao: {e}")
         return jsonify({"ok": True, "id": cart.id})
     finally:
         db.close()
