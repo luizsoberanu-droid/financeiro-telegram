@@ -245,34 +245,17 @@ class FinancialTools:
         self.db = db_session
 
     def get_saldo_atual(self):
-        from models.database import Config, ContaFixa, Lancamento, Parcela
+        from models.database import Config
+        from services.monthly_service import MonthlyService
 
         config = self.db.query(Config).first()
-        receita_total = (config.receita_fixa or 0) + (config.receita_extra or 0)
-
-        contas_pendentes = self.db.query(ContaFixa).filter(ContaFixa.pago == False).all()
-        total_contas = sum(c.valor for c in contas_pendentes)
+        if not config:
+            config = Config()
+            self.db.add(config)
+            self.db.commit()
 
         mes_atual = datetime.now().strftime("%Y-%m")
-        lancamentos = self.db.query(Lancamento).filter(Lancamento.mes_ref == mes_atual).all()
-        total_gastos = sum(l.valor for l in lancamentos)
-
-        parcelas = self.db.query(Parcela).filter(Parcela.mes_ref == mes_atual).all()
-        total_parcelas = sum(p.valor for p in parcelas)
-
-        saldo = receita_total - total_contas - total_gastos - total_parcelas
-
-        # Salva/atualiza o histórico mensal automaticamente, sem alterar o painel.
-        try:
-            from services.monthly_service import MonthlyService
-            MonthlyService(self.db).salvar_resumo_mes(mes_atual)
-        except Exception as e:
-            print(f"Aviso: histórico mensal não atualizado: {e}")
-
-        from models.database import Divida
-        dividas = self.db.query(Divida).all()
-        divida_bruta = sum(d.valor for d in dividas)
-        divida_ajustada = max(divida_bruta - saldo, 0)
+        dados = MonthlyService(self.db).salvar_resumo_mes(mes_atual)
 
         try:
             from services.benefit_service import BenefitCardService
@@ -281,18 +264,24 @@ class FinancialTools:
             alimentacao = {}
 
         return {
-            "receita_total": round(receita_total, 2),
+            "mes_ref": dados["mes_ref"],
+            "saldo_inicial": dados["saldo_inicial"],
+            "movimento_mes": dados["movimento_mes"],
+            "saldo_final": dados["saldo_final"],
+            "saldo_projetado": dados["saldo_projetado"],
+            "saldo_conta_atual": round(config.saldo_conta_atual or 0, 2),
+            "saldo_conta_mes_ref": config.saldo_conta_mes_ref,
+            "receita_total": dados["receita_total"],
             "receita_fixa": round(config.receita_fixa or 0, 2),
             "receita_extra": round(config.receita_extra or 0, 2),
-            "contas_pendentes": round(total_contas, 2),
-            "gastos_mes": round(total_gastos, 2),
-            "parcelas_mes": round(total_parcelas, 2),
-            "saldo_projetado": round(saldo, 2),
+            "contas_pendentes": dados["contas_pendentes"],
+            "gastos_mes": dados["gastos_mes"],
+            "parcelas_mes": dados["parcelas_mes"],
             "modo_atual": config.modo or "recuperacao",
             "reserva_atual": round(config.reserva_atual or 0, 2),
             "meta_reserva": round(config.meta_reserva or 0, 2),
-            "divida_bruta": round(divida_bruta, 2),
-            "divida_total": round(divida_ajustada, 2),
+            "divida_bruta": dados["divida_bruta"],
+            "divida_total": dados["divida_ajustada"],
             "cartao_alimentacao": alimentacao
         }
 

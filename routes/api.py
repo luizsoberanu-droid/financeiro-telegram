@@ -339,13 +339,22 @@ def api_config():
             config.receita_fixa = float(p["receita_fixa"])
         if "receita_extra" in p:
             config.receita_extra = float(p["receita_extra"])
+        saldo_chave = next((k for k in ["saldo_conta_atual", "saldo_inicial", "saldo_atual"] if k in p), None)
+        if saldo_chave:
+            config.saldo_conta_atual = float(p.get(saldo_chave) or 0)
+            config.saldo_conta_mes_ref = p.get("saldo_conta_mes_ref") or p.get("mes_ref") or datetime.now().strftime("%Y-%m")
+            config.saldo_conta_updated_at = datetime.utcnow()
         if "meta_reserva" in p:
             config.meta_reserva = float(p["meta_reserva"])
         if "reserva_atual" in p:
             config.reserva_atual = float(p["reserva_atual"])
 
         db.commit()
-        return jsonify({"ok": True})
+        resumo = None
+        if saldo_chave:
+            from services.monthly_service import MonthlyService
+            resumo = MonthlyService(db).salvar_resumo_mes(config.saldo_conta_mes_ref)
+        return jsonify({"ok": True, "resumo": resumo})
     finally:
         db.close()
 

@@ -183,6 +183,11 @@ MIT License — Use, modifique e distribua livremente.
 
 Esta versão salva o resumo mensal automaticamente em uma tabela `resumo_mensal`, sem alterar o layout do painel.
 
+O saldo agora funciona como conta de banco: cada mes guarda `saldo_inicial`,
+`movimento_mes` e `saldo_final`. O saldo inicial vem do saldo final do mes
+anterior, e voce pode calibrar a situacao financeira de hoje pelo painel ou
+falando no Telegram algo como `meu saldo hoje e R$ 1200`.
+
 Endpoints:
 - `GET /api/historico_mensal`
 - `POST /api/historico_mensal/atualizar`

@@ -15,6 +15,9 @@ class Config(Base):
     id = Column(Integer, primary_key=True)
     receita_fixa = Column(Float, default=5300.0)
     receita_extra = Column(Float, default=0.0)
+    saldo_conta_atual = Column(Float, default=0.0)
+    saldo_conta_mes_ref = Column(String, nullable=True)
+    saldo_conta_updated_at = Column(DateTime, nullable=True)
     meta_reserva = Column(Float, default=12000.0)
     reserva_atual = Column(Float, default=0.0)
     viagem_meta = Column(Float, default=0.0)
@@ -142,10 +145,13 @@ class ResumoMensal(Base):
     __tablename__ = 'resumo_mensal'
     id = Column(Integer, primary_key=True)
     mes_ref = Column(String, unique=True, nullable=False)
+    saldo_inicial = Column(Float, default=0.0)
     receita_total = Column(Float, default=0.0)
     contas_pendentes = Column(Float, default=0.0)
     gastos_mes = Column(Float, default=0.0)
     parcelas_mes = Column(Float, default=0.0)
+    movimento_mes = Column(Float, default=0.0)
+    saldo_final = Column(Float, default=0.0)
     saldo_projetado = Column(Float, default=0.0)
     divida_bruta = Column(Float, default=0.0)
     divida_ajustada = Column(Float, default=0.0)
@@ -229,13 +235,36 @@ def init_db():
 def _ensure_schema(session):
     inspector = inspect(engine)
     tabelas = inspector.get_table_names()
-    if "cartoes" not in tabelas:
-        return
 
-    colunas_cartoes = {c["name"] for c in inspector.get_columns("cartoes")}
-    if "limite_real" not in colunas_cartoes:
-        session.execute(text("ALTER TABLE cartoes ADD COLUMN limite_real FLOAT DEFAULT 0"))
-        session.commit()
+    if "cartoes" in tabelas:
+        colunas_cartoes = {c["name"] for c in inspector.get_columns("cartoes")}
+        if "limite_real" not in colunas_cartoes:
+            session.execute(text("ALTER TABLE cartoes ADD COLUMN limite_real FLOAT DEFAULT 0"))
+            session.commit()
+
+    if "config" in tabelas:
+        colunas_config = {c["name"] for c in inspector.get_columns("config")}
+        if "saldo_conta_atual" not in colunas_config:
+            session.execute(text("ALTER TABLE config ADD COLUMN saldo_conta_atual FLOAT DEFAULT 0"))
+            session.commit()
+        if "saldo_conta_mes_ref" not in colunas_config:
+            session.execute(text("ALTER TABLE config ADD COLUMN saldo_conta_mes_ref VARCHAR"))
+            session.commit()
+        if "saldo_conta_updated_at" not in colunas_config:
+            session.execute(text("ALTER TABLE config ADD COLUMN saldo_conta_updated_at DATETIME"))
+            session.commit()
+
+    if "resumo_mensal" in tabelas:
+        colunas_resumo = {c["name"] for c in inspector.get_columns("resumo_mensal")}
+        if "saldo_inicial" not in colunas_resumo:
+            session.execute(text("ALTER TABLE resumo_mensal ADD COLUMN saldo_inicial FLOAT DEFAULT 0"))
+            session.commit()
+        if "movimento_mes" not in colunas_resumo:
+            session.execute(text("ALTER TABLE resumo_mensal ADD COLUMN movimento_mes FLOAT DEFAULT 0"))
+            session.commit()
+        if "saldo_final" not in colunas_resumo:
+            session.execute(text("ALTER TABLE resumo_mensal ADD COLUMN saldo_final FLOAT DEFAULT 0"))
+            session.commit()
 
 def get_db():
     db = SessionLocal()

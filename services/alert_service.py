@@ -163,10 +163,11 @@ class AlertService:
         tools = FinancialTools(self.db)
         saldo = tools.get_saldo_atual()
 
-        if saldo["saldo_projetado"] < 0:
+        saldo_final = saldo.get("saldo_final", saldo["saldo_projetado"])
+        if saldo_final < 0:
             msg = (
-                "ATENCAO: SALDO NEGATIVO PROJETADO\n\n"
-                "Seu saldo projetado esta em R$ " + str(round(saldo['saldo_projetado'], 2)) + "\n"
+                "ATENCAO: SALDO FINAL NEGATIVO\n\n"
+                "Seu saldo final esta em R$ " + str(round(saldo_final, 2)) + "\n"
                 "Isso significa que voce vai ficar no vermelho antes do fim do mes.\n\n"
                 "Acoes imediatas:\n"
                 "- Segure gastos nao essenciais\n"

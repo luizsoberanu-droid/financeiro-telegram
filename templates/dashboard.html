@@ -521,9 +521,9 @@
         <div id="dashboard" class="section active">
             <div class="grid">
                 <div class="card">
-                    <h3>💰 Saldo Projetado</h3>
+                    <h3>💰 Saldo Final</h3>
                     <div class="value" id="saldo">Carregando...</div>
-                    <p>Após contas e gastos</p>
+                    <p id="saldo-contexto">Saldo anterior + mes atual</p>
                 </div>
                 <div class="card">
                     <h3>💳 Dívida Total</h3>
@@ -957,6 +957,10 @@
                         <label>Renda Extra (R$)</label>
                         <input type="number" id="config-extra" value="0" step="0.01">
                     </div>
+                    <div class="form-group">
+                        <label>Situacao financeira hoje (R$)</label>
+                        <input type="number" id="config-saldo-conta" value="0" step="0.01">
+                    </div>
                     <button class="btn btn-primary" onclick="salvarConfig()">💾 Salvar</button>
                 </div>
 
@@ -1134,9 +1138,14 @@
             try {
                 var status = await api('/api/status');
                 if (status) {
-                    var saldo = status.saldo_projetado || 0;
+                    var saldo = status.saldo_final;
+                    if (saldo === undefined || saldo === null) saldo = status.saldo_projetado || 0;
                     document.getElementById('saldo').textContent = 'R$ ' + saldo.toFixed(2).replace('.', ',');
                     document.getElementById('saldo').className = 'value ' + (saldo >= 0 ? 'positive' : 'negative');
+                    var saldoContexto = document.getElementById('saldo-contexto');
+                    if (saldoContexto) {
+                        saldoContexto.textContent = 'Inicial ' + fmtMoney(status.saldo_inicial || 0) + ' | Movimento ' + fmtMoney(status.movimento_mes || 0);
+                    }
                     var modo = status.modo_atual || 'recuperacao';
                     document.getElementById('modo').textContent = modo.toUpperCase();
                     var badge = document.getElementById('status-badge');
@@ -1522,7 +1531,7 @@ async function loadDesejos() {
             }
 
             var status = await api('/api/status');
-            var saldo = status ? (status.saldo_projetado || 0) : 0;
+            var saldo = status ? ((status.saldo_final === undefined || status.saldo_final === null) ? (status.saldo_projetado || 0) : status.saldo_final) : 0;
             var divida = status ? (status.divida_total || 0) : 0;
             var modo = status ? (status.modo_atual || 'recuperacao') : 'recuperacao';
 
@@ -1665,6 +1674,9 @@ async function deleteDesejo(id) {
                 if (status) {
                     document.getElementById('config-renda').value = status.receita_fixa || 5300;
                     document.getElementById('config-extra').value = status.receita_extra || 0;
+                    var saldoConfig = status.saldo_inicial || 0;
+                    if (status.saldo_conta_mes_ref === status.mes_ref) saldoConfig = status.saldo_conta_atual || 0;
+                    document.getElementById('config-saldo-conta').value = saldoConfig;
                 }
                 var res = await api('/api/reserva');
                 if (res) {
@@ -1695,7 +1707,8 @@ async function deleteDesejo(id) {
         async function salvarConfig() {
             var renda = parseFloat(document.getElementById('config-renda').value);
             var extra = parseFloat(document.getElementById('config-extra').value);
-            var res = await api('/api/config', 'POST', { receita_fixa: renda, receita_extra: extra });
+            var saldoConta = parseFloat(document.getElementById('config-saldo-conta').value);
+            var res = await api('/api/config', 'POST', { receita_fixa: renda, receita_extra: extra, saldo_conta_atual: saldoConta });
             if (res && res.ok) { showToast('Salvo!'); loadDashboard(); }
         }
 
@@ -1909,9 +1922,9 @@ async function deleteDesejo(id) {
                         charts.saldo = new Chart(ctx2.getContext('2d'), {
                             type: 'bar',
                             data: {
-                                labels: ['Receita', 'Contas Fixas', 'Gastos', 'Parcelas', 'Saldo'],
+                                labels: ['Saldo Inicial', 'Receita', 'Contas', 'Gastos', 'Parcelas', 'Saldo Final'],
                                 datasets: [{ label: 'R$',
-                                    data: [status.receita_total, status.contas_pendentes, status.gastos_mes, status.parcelas_mes, status.saldo_projetado],
+                                    data: [status.saldo_inicial || 0, status.receita_total, -status.contas_pendentes, -status.gastos_mes, -status.parcelas_mes, status.saldo_final || status.saldo_projetado],
                                     backgroundColor: colors.colors, borderRadius: 8 }]
                             },
                             options: { responsive: true, maintainAspectRatio: false,

@@ -3,6 +3,7 @@ import os
 import re
 import unicodedata
 import requests
+from datetime import datetime
 
 from models.database import get_db
 from services.ai_service import NexusAI
@@ -265,6 +266,51 @@ def _tratar_limite_cartao(db, chat_id, text):
     return "Limite real registrado.\n\n" + _formatar_limites(db)
 
 
+def _tratar_saldo_conta(db, chat_id, text):
+    msg = _normalizar(text)
+    if any(t in msg for t in ["alimentacao", "vale alimentacao", "cartao alimentacao"]):
+        return None
+    if any(t in msg for t in ["comprei", "gastei", "paguei", "lancar", "lanca", "registrar"]):
+        return None
+
+    gatilhos = [
+        "saldo hoje", "saldo atual", "saldo da conta", "saldo bancario",
+        "situacao financeira", "minha situacao", "tenho na conta",
+        "estou com", "hoje estou com",
+    ]
+    if not any(t in msg for t in gatilhos):
+        return None
+
+    valor = _extrair_valor(text)
+    if valor <= 0:
+        return "Qual e o saldo real que voce tem hoje na conta?"
+
+    from models.database import Config
+    from services.monthly_service import MonthlyService
+
+    config = db.query(Config).first()
+    if not config:
+        config = Config()
+        db.add(config)
+
+    mes_ref = datetime.now().strftime("%Y-%m")
+    config.saldo_conta_atual = float(valor)
+    config.saldo_conta_mes_ref = mes_ref
+    config.saldo_conta_updated_at = datetime.utcnow()
+    db.commit()
+
+    resumo = MonthlyService(db).salvar_resumo_mes(mes_ref)
+    _clear_session(chat_id)
+
+    return (
+        "Situacao financeira calibrada no banco.\n"
+        f"Saldo informado hoje: R$ {valor:.2f}\n"
+        f"Movimento previsto do mes: R$ {resumo['movimento_mes']:.2f}\n"
+        f"Saldo final projetado: R$ {resumo['saldo_final']:.2f}\n\n"
+        "Daqui pra frente, o fechamento do mes vira a base do mes seguinte."
+    )
+
+
 def _tratar_desejo(db, chat_id, text):
     msg = _normalizar(text)
     termos_desejo = [
@@ -326,7 +372,7 @@ def _tratar_lancamento(db, chat_id, text):
 
 
 def tratar_integracoes(db, chat_id, text):
-    for handler in [_tratar_pendencia, _tratar_limite_cartao, _tratar_desejo, _tratar_lancamento]:
+    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_desejo, _tratar_lancamento]:
         resposta = handler(db, chat_id, text)
         if resposta:
             return resposta
@@ -348,7 +394,7 @@ def resposta_ia_segura(db, chat_id, text):
         return (
             "NEXUS modo analista patrimonial\n\n"
             f"Receita: R$ {saldo['receita_total']:.2f}\n"
-            f"Saldo projetado: R$ {saldo['saldo_projetado']:.2f}\n"
+            f"Saldo final: R$ {saldo.get('saldo_final', saldo['saldo_projetado']):.2f}\n"
             f"Divida ajustada: R$ {dividas['total_divida']:.2f}\n"
             f"Reserva: R$ {saldo['reserva_atual']:.2f} de R$ {saldo['meta_reserva']:.2f}\n\n"
             "Me diga um objetivo, um gasto, um limite real de cartao ou um item da lista de desejos que eu analiso e salvo."

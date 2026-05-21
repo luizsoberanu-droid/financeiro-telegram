@@ -61,11 +61,13 @@ class PDFService:
 
         story.append(Paragraph("RESUMO EXECUTIVO", heading_style))
         resumo_data = [
+            ["Saldo Inicial", "R$ " + str(round(saldo.get('saldo_inicial', 0), 2))],
             ["Receita Total", "R$ " + str(round(saldo['receita_total'], 2))],
             ["Contas Fixas", "R$ " + str(round(saldo['contas_pendentes'], 2))],
             ["Gastos Variaveis", "R$ " + str(round(saldo['gastos_mes'], 2))],
             ["Parcelas", "R$ " + str(round(saldo['parcelas_mes'], 2))],
-            ["Saldo Projetado", "R$ " + str(round(saldo['saldo_projetado'], 2))],
+            ["Movimento do Mes", "R$ " + str(round(saldo.get('movimento_mes', 0), 2))],
+            ["Saldo Final", "R$ " + str(round(saldo.get('saldo_final', saldo['saldo_projetado']), 2))],
             ["Divida Total", "R$ " + str(round(dividas['total_divida'], 2))],
             ["Reserva", "R$ " + str(round(reserva['atual'], 2)) + " / R$ " + str(round(reserva['meta'], 2))],
         ]
@@ -148,7 +150,8 @@ class PDFService:
 
     def _gerar_pdf_html(self, mes_ref, saldo, dividas, reserva, plano, lancamentos, parcelas, contas):
         mes_nome = self._mes_nome(mes_ref)
-        saldo_class = "positive" if saldo['saldo_projetado'] >= 0 else "negative"
+        saldo_final = saldo.get('saldo_final', saldo['saldo_projetado'])
+        saldo_class = "positive" if saldo_final >= 0 else "negative"
 
         linhas_contas = ""
         for c in contas:
@@ -192,11 +195,13 @@ class PDFService:
             "<h1>RELATORIO FINANCEIRO</h1>"
             "<h3 style='text-align:center;color:#888'>" + mes_nome + "</h3>"
             "<h2>Resumo Executivo</h2><div class='resumo'>"
+            "<div class='resumo-item'><span>Saldo Inicial</span><span>R$ " + str(round(saldo.get('saldo_inicial', 0), 2)) + "</span></div>"
             "<div class='resumo-item'><span>Receita Total</span><span><b>R$ " + str(round(saldo['receita_total'], 2)) + "</b></span></div>"
             "<div class='resumo-item'><span>Contas Fixas</span><span>R$ " + str(round(saldo['contas_pendentes'], 2)) + "</span></div>"
             "<div class='resumo-item'><span>Gastos Variaveis</span><span>R$ " + str(round(saldo['gastos_mes'], 2)) + "</span></div>"
             "<div class='resumo-item'><span>Parcelas</span><span>R$ " + str(round(saldo['parcelas_mes'], 2)) + "</span></div>"
-            "<div class='resumo-item'><span><b>Saldo Projetado</b></span><span class='" + saldo_class + "'><b>R$ " + str(round(saldo['saldo_projetado'], 2)) + "</b></span></div>"
+            "<div class='resumo-item'><span>Movimento do Mes</span><span>R$ " + str(round(saldo.get('movimento_mes', 0), 2)) + "</span></div>"
+            "<div class='resumo-item'><span><b>Saldo Final</b></span><span class='" + saldo_class + "'><b>R$ " + str(round(saldo_final, 2)) + "</b></span></div>"
             "<div class='resumo-item'><span>Divida Total</span><span class='negative'>R$ " + str(round(dividas['total_divida'], 2)) + "</span></div>"
             "<div class='resumo-item'><span>Reserva</span><span>R$ " + str(round(reserva['atual'], 2)) + " / R$ " + str(round(reserva['meta'], 2)) + " (" + str(round(reserva['percentual'], 1)) + "%)</span></div>"
             "</div>"
