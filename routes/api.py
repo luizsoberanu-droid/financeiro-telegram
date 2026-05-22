@@ -626,6 +626,40 @@ def api_testar_alertas():
         db.close()
 
 
+# ==================== ANALISTA AURUM ====================
+@api_bp.route('/analista/checkup', methods=['GET', 'POST'])
+def api_analista_checkup():
+    db = get_db_session()
+    try:
+        from services.advisor_service import AdvisorService
+        from services.alert_service import telegram_send
+
+        svc = AdvisorService(db)
+        result = svc.checkup_patrimonial()
+
+        enviar = False
+        chat_id = None
+        if request.method == "POST":
+            p = request.get_json(silent=True) or {}
+            enviar = bool(p.get("enviar_telegram", True))
+            chat_id = p.get("chat_id")
+        else:
+            enviar = str(request.args.get("enviar_telegram", "")).lower() in ["true", "1", "sim", "yes"]
+            chat_id = request.args.get("chat_id")
+
+        if enviar:
+            destinos = [chat_id] if chat_id else svc.chat_ids_destino()
+            enviados = []
+            for destino in destinos:
+                ok, detail = telegram_send(destino, result["mensagem"])
+                enviados.append({"chat_id": destino, "ok": ok, "detail": detail})
+            result["telegram"] = enviados
+
+        return jsonify(result)
+    finally:
+        db.close()
+
+
 # ==================== DESEJOS ====================
 
 @api_bp.route('/desejos')
@@ -633,7 +667,9 @@ def api_list_desejos():
     db = get_db_session()
     try:
         from models.database import Desejo
-        desejos = db.query(Desejo).order_by(Desejo.created_at.desc()).all()
+        rank = {"alta": 1, "media": 2, "média": 2, "baixa": 3}
+        desejos = db.query(Desejo).all()
+        desejos.sort(key=lambda d: (rank.get((d.prioridade or "media").lower(), 2), d.valor or 0, d.created_at or datetime.max))
         return jsonify([{
             "id": d.id,
             "nome": d.nome,

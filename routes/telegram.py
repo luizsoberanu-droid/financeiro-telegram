@@ -380,8 +380,21 @@ def _tratar_lancamento(db, chat_id, text):
     return _salvar_lancamento(db, chat_id, descricao, valor, forma, cartao_nome)
 
 
+def _tratar_checkup_analista(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = [
+        "checkup", "check-up", "analista", "me guia", "me oriente",
+        "resumo financeiro", "plano de prosperidade", "como estou",
+        "lista de prioridades", "prioridade dos desejos"
+    ]
+    if not any(t in msg for t in gatilhos):
+        return None
+    from services.advisor_service import AdvisorService
+    return AdvisorService(db).checkup_patrimonial()["mensagem"]
+
+
 def tratar_integracoes(db, chat_id, text):
-    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_desejo, _tratar_lancamento]:
+    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_desejo, _tratar_lancamento, _tratar_checkup_analista]:
         resposta = handler(db, chat_id, text)
         if resposta:
             return resposta

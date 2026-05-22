@@ -62,6 +62,14 @@ def iniciar_cron_jobs(app):
     )
 
     scheduler.add_job(
+        func=lambda: enviar_checkup_analista_patrimonial(app),
+        trigger=CronTrigger(hour=9, minute=20),
+        id='checkup_analista_patrimonial',
+        name='Check-up Diario do Analista Aurum',
+        replace_existing=True
+    )
+
+    scheduler.add_job(
         func=lambda: enviar_revisao_mensal_desejos(app),
         trigger=CronTrigger(day=1, hour=10, minute=30),
         id='revisao_mensal_desejos',
@@ -79,7 +87,7 @@ def iniciar_cron_jobs(app):
 
     telegram_automations = os.getenv("TELEGRAM_AUTOMATIONS_ENABLED", "false").lower() in ["true", "1", "sim", "yes"]
     if not telegram_automations:
-        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas", "revisao_mensal_desejos", "checkup_sazonal"]:
+        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas", "checkup_analista_patrimonial", "revisao_mensal_desejos", "checkup_sazonal"]:
             try:
                 scheduler.remove_job(job_id)
             except Exception:
@@ -94,18 +102,15 @@ def iniciar_cron_jobs(app):
         print("   • Alertas vencimento: 8h")
         print("   • Relatório mensal: último dia do mês às 20h")
         print("   • Check-up dívidas: domingo às 10h")
+        print("   • Check-up Analista Aurum: todos os dias às 9h20")
     print("   Automações Telegram: " + ("ligadas" if telegram_automations else "desligadas"))
     return scheduler
 
 
 def _chat_ids_destino(db):
-    chat_env = os.getenv("TELEGRAM_DEFAULT_CHAT_ID", "").strip()
-    if chat_env:
-        return [chat_env]
     try:
-        from models.database import Conversa
-        ids = [row[0] for row in db.query(Conversa.chat_id).distinct().all() if row[0] and row[0] != "default"]
-        return ids or ["default"]
+        from services.advisor_service import AdvisorService
+        return AdvisorService(db).chat_ids_destino()
     except Exception:
         return ["default"]
 
@@ -118,8 +123,8 @@ def enviar_alertas_diarios(app):
         db = SessionLocal()
         try:
             alert_svc = AlertService(db)
-            # Buscar chat_ids dos usuários (simplificado - usa default)
-            alert_svc.verificar_todos_alertas("default")
+            for chat_id in _chat_ids_destino(db):
+                alert_svc.verificar_todos_alertas(chat_id)
             print(f"[{datetime.now()}] Alertas diários enviados")
         except Exception as e:
             print(f"[{datetime.now()}] Erro alertas diários: {e}")
@@ -135,7 +140,8 @@ def enviar_alertas_vencimento(app):
         db = SessionLocal()
         try:
             alert_svc = AlertService(db)
-            alert_svc._alerta_contas_vencimento("default")
+            for chat_id in _chat_ids_destino(db):
+                alert_svc._alerta_contas_vencimento(chat_id)
             print(f"[{datetime.now()}] Alertas de vencimento enviados")
         except Exception as e:
             print(f"[{datetime.now()}] Erro alertas vencimento: {e}")
@@ -168,7 +174,8 @@ def gerar_relatorio_mensal(app):
                 f"O relatório financeiro do mês está pronto!\n"
                 f"Acesse o painel para baixar."
             )
-            telegram_send("default", msg)
+            for chat_id in _chat_ids_destino(db):
+                telegram_send(chat_id, msg)
             print(f"[{datetime.now()}] Relatório mensal gerado: {filename}")
         except Exception as e:
             print(f"[{datetime.now()}] Erro relatório mensal: {e}")
@@ -184,10 +191,31 @@ def enviar_checkup_dividas(app):
         db = SessionLocal()
         try:
             alert_svc = AlertService(db)
-            alert_svc._alerta_divida("default")
+            for chat_id in _chat_ids_destino(db):
+                alert_svc._alerta_divida(chat_id)
             print(f"[{datetime.now()}] Check-up de dívidas enviado")
         except Exception as e:
             print(f"[{datetime.now()}] Erro check-up dívidas: {e}")
+        finally:
+            db.close()
+
+
+def enviar_checkup_analista_patrimonial(app):
+    """Envia uma orientacao financeira completa com desejos, cartao e proximas acoes."""
+    with app.app_context():
+        from models.database import SessionLocal
+        from services.advisor_service import AdvisorService
+        from services.alert_service import telegram_send
+
+        db = SessionLocal()
+        try:
+            svc = AdvisorService(db)
+            result = svc.checkup_patrimonial()
+            for chat_id in svc.chat_ids_destino():
+                telegram_send(chat_id, result["mensagem"])
+            print(f"[{datetime.now()}] Check-up do Analista Aurum enviado")
+        except Exception as e:
+            print(f"[{datetime.now()}] Erro check-up Analista Aurum: {e}")
         finally:
             db.close()
 

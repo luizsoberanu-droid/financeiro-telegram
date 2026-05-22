@@ -109,6 +109,7 @@ O Telegram nao depende mais de comandos fixos. A IA entende a intencao, pergunta
 | `meu limite do Nubank e R$ 5000` | Registra o limite real do cartao |
 | `quanto posso gastar no cartao este mes?` | Mostra limite real, limite seguro, uso e disponivel |
 | `quero comprar celular de R$ 2500` | Salva na lista de desejos e analisa quando pode comprar |
+| `checkup do analista` | Envia saldo, dividas, limite do cartao, desejos priorizados e proximas acoes |
 | Qualquer texto | A IA analisa sua renda, dividas, reserva e estrategia |
 
 ---
@@ -271,4 +272,6 @@ Integracoes conversacionais no Telegram:
 - `adiciona PlayStation 5 na lista de desejos`: busca media real de preco na internet, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.
 - Revisao mensal: quando as automacoes Telegram estao ligadas, o Aurum Capital consulta a media dos desejos todo mes, guarda historico e avisa se o preco cair ou se a compra ficar segura.
 - Check-up sazonal: o Aurum Capital cruza estacao do ano e clima para sugerir itens como roupas de frio, roupas leves, cobertor ou ventilador antes da necessidade apertar.
+- Check-up do analista: quando `TELEGRAM_AUTOMATIONS_ENABLED=true`, o Aurum envia todo dia uma leitura com risco do mes, saldo, dividas, limite seguro de credito, desejos ordenados por prioridade e proximas acoes.
 - Para receber mensagens automaticas, use `TELEGRAM_AUTOMATIONS_ENABLED=true`. Se quiser fixar um chat, use `TELEGRAM_DEFAULT_CHAT_ID`.
+- Para acordar o Render Free e receber check-up mesmo apos sono, configure um cron externo/UptimeRobot chamando `GET /api/analista/checkup?enviar_telegram=true`.
