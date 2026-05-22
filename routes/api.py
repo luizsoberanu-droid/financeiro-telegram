@@ -323,6 +323,160 @@ def api_plano():
     finally:
         db.close()
 
+@api_bp.route('/prosperidade')
+def api_prosperidade():
+    db = get_db_session()
+    try:
+        from models.database import Config, ContaFixa, Cartao, Desejo, Apontamento
+
+        tools = FinancialTools(db)
+        saldo = tools.get_saldo_atual()
+        dividas = tools.get_analise_dividas()
+        reserva = tools.get_reserva_status()
+        visao = tools.get_visao_patrimonial()
+
+        valor_meta = float(request.args.get("valor_meta", 1000000) or 1000000)
+        prazo_anos = float(request.args.get("prazo_anos", 10) or 10)
+        retorno = float(request.args.get("retorno_anual_pct", 6) or 6)
+        meta = tools.planejar_meta_patrimonial(valor_meta, prazo_anos, retorno)
+
+        config = db.query(Config).first()
+        mes_ref = datetime.now().strftime("%Y-%m")
+        receita_total = float(saldo.get("receita_total") or 0)
+        saldo_final = float(saldo.get("saldo_final", saldo.get("saldo_projetado", 0)) or 0)
+        divida_total = float(dividas.get("total_divida") or 0)
+        reserva_faltante = float(reserva.get("faltante") or 0)
+        aporte_atual = float(visao.get("aporte_mensal_sugerido") or 0)
+
+        contas_count = db.query(ContaFixa).count()
+        cartoes_count = db.query(Cartao).count()
+        desejos_count = db.query(Desejo).count()
+        apontamentos_count = db.query(Apontamento).count()
+        saldo_ok = bool(config and config.saldo_conta_mes_ref == mes_ref)
+
+        etapas = [
+            {
+                "id": "renda",
+                "titulo": "Informar renda mensal",
+                "feito": receita_total > 0,
+                "secao": "config",
+                "acao": "Atualize renda fixa e renda extra.",
+            },
+            {
+                "id": "saldo",
+                "titulo": "Calibrar saldo real de hoje",
+                "feito": saldo_ok,
+                "secao": "config",
+                "acao": "Informe a situacao financeira atual para o saldo carregar como banco.",
+            },
+            {
+                "id": "contas",
+                "titulo": "Cadastrar contas fixas",
+                "feito": contas_count > 0,
+                "secao": "contas",
+                "acao": "Cadastre aluguel, financiamento, internet, faculdade e outras obrigacoes.",
+            },
+            {
+                "id": "cartoes",
+                "titulo": "Cadastrar cartoes e limites",
+                "feito": cartoes_count > 0,
+                "secao": "cartoes",
+                "acao": "Informe limite real, vencimento e melhor dia de compra.",
+            },
+            {
+                "id": "desejos",
+                "titulo": "Montar lista de desejos",
+                "feito": desejos_count > 0,
+                "secao": "desejos",
+                "acao": "Adicione metas e compras desejadas para a IA liberar no momento certo.",
+            },
+            {
+                "id": "cofre",
+                "titulo": "Criar trilha de salvamento",
+                "feito": apontamentos_count > 0,
+                "secao": "salvamento",
+                "acao": "Use o app normalmente e mantenha backup/snapshot ativo.",
+            },
+        ]
+        progresso = round(sum(1 for e in etapas if e["feito"]) / len(etapas) * 100, 1)
+
+        if saldo_final < 0:
+            risco = "critico"
+            decisao = "Congelar gastos nao essenciais e recompor o saldo antes de qualquer desejo."
+        elif divida_total > 0:
+            risco = "alto"
+            decisao = "Quitar dividas primeiro. Investimento e desejos so entram depois do caixa estabilizar."
+        elif reserva_faltante > 0:
+            risco = "moderado"
+            decisao = "Prioridade em reserva. Comprar somente itens essenciais ou de alto impacto."
+        elif meta.get("meta_cabe_no_orcamento_atual"):
+            risco = "controlado"
+            decisao = "Plano de crescimento liberado. Mantenha aporte mensal e revise investimentos com disciplina."
+        else:
+            risco = "atencao"
+            decisao = "A meta exige renda maior, prazo maior ou reducao de custos antes de acelerar compras."
+
+        if divida_total > 0:
+            limite_gasto_mes = min(max(receita_total * 0.05, 0), max(saldo_final * 0.1, 0))
+        elif reserva_faltante > 0:
+            limite_gasto_mes = min(max(receita_total * 0.10, 0), max(saldo_final * 0.2, 0))
+        else:
+            limite_gasto_mes = min(max(receita_total * 0.15, 0), max(saldo_final * 0.3, 0))
+
+        proximas_acoes = []
+        if not saldo_ok:
+            proximas_acoes.append("Calibrar o saldo real de hoje na configuracao.")
+        if divida_total > 0:
+            proximas_acoes.append(f"Separar pelo menos R$ {dividas.get('meta_3_meses', 0):.2f}/mes para eliminar dividas em ate 3 meses.")
+        if reserva_faltante > 0:
+            proximas_acoes.append(f"Direcionar R$ {reserva.get('sugestao_mensal', 0):.2f}/mes para reserva de emergencia.")
+        if meta.get("gap_mensal", 0) > 0:
+            proximas_acoes.append(f"Criar plano para cobrir gap mensal de R$ {meta.get('gap_mensal', 0):.2f} da meta patrimonial.")
+        if not proximas_acoes:
+            proximas_acoes.append("Manter aporte mensal e revisar carteira sem prometer retorno garantido.")
+
+        marcos = [
+            {
+                "titulo": "Fechar o mes positivo",
+                "valor": round(max(saldo_final, 0), 2),
+                "descricao": "Caixa livre depois de receitas, contas, gastos e parcelas.",
+            },
+            {
+                "titulo": "Eliminar dividas",
+                "valor": round(divida_total, 2),
+                "descricao": "Quanto ainda precisa ser atacado antes de acelerar investimentos.",
+            },
+            {
+                "titulo": "Completar reserva",
+                "valor": round(reserva_faltante, 2),
+                "descricao": "Protecao antes de assumir risco maior.",
+            },
+            {
+                "titulo": "Meta patrimonial",
+                "valor": round(valor_meta, 2),
+                "descricao": f"Aporte necessario: R$ {meta.get('aporte_mensal_necessario', 0):.2f}/mes.",
+            },
+        ]
+
+        return jsonify({
+            "ok": True,
+            "mes_ref": mes_ref,
+            "risco": risco,
+            "decisao": decisao,
+            "fase": visao.get("fase"),
+            "foco": visao.get("foco"),
+            "progresso_onboarding": progresso,
+            "etapas": etapas,
+            "limite_gasto_mes": round(limite_gasto_mes, 2),
+            "aporte_mensal_sugerido": round(aporte_atual, 2),
+            "proximas_acoes": proximas_acoes[:4],
+            "marcos": marcos,
+            "meta": meta,
+            "disclaimer": "Analise educativa e de controle de risco. Nao e promessa de retorno nem recomendacao individual definitiva de investimento."
+        })
+    finally:
+        db.close()
+
 # ==================== CONFIGURAÇÕES ====================
 @api_bp.route('/config', methods=['POST'])
 def api_config():

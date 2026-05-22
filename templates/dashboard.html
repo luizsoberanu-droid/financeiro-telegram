@@ -196,6 +196,124 @@
             text-align: center;
         }
 
+        .advisor-panel {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+        .advisor-main {
+            background: linear-gradient(135deg, rgba(216,180,95,0.13), rgba(84,182,169,0.08));
+            border: 1px solid rgba(216,180,95,0.28);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+        }
+        .advisor-kicker {
+            color: var(--accent);
+            font-size: 0.78em;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .advisor-main h2 {
+            font-size: clamp(1.5rem, 3vw, 2.2rem);
+            line-height: 1.08;
+            margin-bottom: 10px;
+            letter-spacing: 0;
+        }
+        .advisor-main p { color: var(--text-dim); line-height: 1.5; }
+        .advisor-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .advisor-side {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .advisor-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .mini-metric {
+            background: rgba(255,255,255,0.045);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .mini-metric span {
+            display: block;
+            color: var(--text-dim);
+            font-size: 0.78em;
+            margin-bottom: 6px;
+        }
+        .mini-metric strong {
+            display: block;
+            color: var(--text);
+            font-size: 1.05em;
+        }
+        .checklist {
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .check-item {
+            display: grid;
+            grid-template-columns: 18px minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid var(--border);
+        }
+        .check-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: var(--danger);
+        }
+        .check-item.done .check-dot { background: var(--success); }
+        .check-item button {
+            padding: 7px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            cursor: pointer;
+        }
+        .plan-band {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin: 18px 0;
+        }
+        .plan-step {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            background: rgba(255,255,255,0.04);
+        }
+        .plan-step h4 { color: var(--accent); margin-bottom: 8px; }
+        .plan-step strong { display: block; font-size: 1.25em; margin-bottom: 8px; }
+        .plan-step p { color: var(--text-dim); line-height: 1.4; font-size: 0.92em; }
+        .decision-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .decision-list li {
+            margin-left: 18px;
+            color: var(--text);
+            line-height: 1.45;
+        }
+
         /* Navigation */
         .nav-tabs {
             display: flex;
@@ -469,6 +587,8 @@
         /* Responsive */
         @media (max-width: 768px) {
             header { grid-template-columns: 1fr; }
+            .advisor-panel { grid-template-columns: 1fr; }
+            .advisor-metrics { grid-template-columns: 1fr; }
             .grid { grid-template-columns: 1fr; }
             .nav-tabs { justify-content: flex-start; }
             .wishlist-item { flex-direction: column; align-items: flex-start; }
@@ -593,6 +713,10 @@
                 <div class="icon">WL</div>
                 <div class="label">Lista de Desejos</div>
             </div>
+            <div class="quick-action-btn" onclick="showSection('prosperidade')">
+                <div class="icon">AI</div>
+                <div class="label">Plano de Prosperidade</div>
+            </div>
             <div class="quick-action-btn" onclick="exportarPDF()">
                 <div class="icon">PDF</div>
                 <div class="label">Exportar PDF</div>
@@ -611,12 +735,49 @@
             <div class="nav-tab" onclick="showSection('alimentacao')">Alimentação</div>
             <div class="nav-tab" onclick="showSection('gastos')">Gastos</div>
             <div class="nav-tab" onclick="showSection('desejos')">Desejos</div>
+            <div class="nav-tab" onclick="showSection('prosperidade')">Prosperidade</div>
             <div class="nav-tab" onclick="showSection('salvamento')">Cofre</div>
             <div class="nav-tab" onclick="showSection('config')">Configuração</div>
         </div>
 
         <!-- SECTION: DASHBOARD -->
         <div id="dashboard" class="section active">
+            <div class="advisor-panel">
+                <div class="advisor-main">
+                    <div class="advisor-kicker">Analista Aurum</div>
+                    <h2 id="advisor-decisao">Carregando diagnóstico patrimonial...</h2>
+                    <p id="advisor-foco">Avaliando renda, saldo, dívidas, reserva, cartão e lista de desejos.</p>
+                    <div class="advisor-metrics">
+                        <div class="mini-metric">
+                            <span>Risco do mês</span>
+                            <strong id="advisor-risco">-</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Limite seguro livre</span>
+                            <strong id="advisor-limite">R$ 0,00</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Aporte sugerido</span>
+                            <strong id="advisor-aporte">R$ 0,00</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Setup financeiro</span>
+                            <strong id="advisor-progresso">0%</strong>
+                        </div>
+                    </div>
+                    <div class="advisor-actions">
+                        <button class="btn btn-primary" onclick="showSection('prosperidade')">Ver Plano de Prosperidade</button>
+                        <button class="btn btn-outline" onclick="showSection('config')">Atualizar situação de hoje</button>
+                    </div>
+                </div>
+                <div class="advisor-side">
+                    <h3>Primeiros passos</h3>
+                    <p style="color:var(--text-dim);line-height:1.45;">Quanto mais completo o cadastro, mais precisa fica a análise.</p>
+                    <div class="progress-bar"><div class="progress-fill" id="onboarding-bar" style="width:0%"></div></div>
+                    <div id="onboarding-list" class="checklist"></div>
+                </div>
+            </div>
+
             <div class="grid">
                 <div class="card">
                     <h3>Saldo Final</h3>
@@ -707,6 +868,72 @@
                         <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Pagamento</th></tr></thead>
                         <tbody></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION: PLANO DE PROSPERIDADE -->
+        <div id="prosperidade" class="section">
+            <h2 class="section-title">Plano de Prosperidade</h2>
+
+            <div class="advisor-panel">
+                <div class="advisor-main">
+                    <div class="advisor-kicker">Estratégia patrimonial</div>
+                    <h2 id="prosperidade-decisao">Carregando plano...</h2>
+                    <p id="prosperidade-disclaimer">Análise educativa e de controle de risco.</p>
+                    <div class="advisor-metrics">
+                        <div class="mini-metric">
+                            <span>Fase atual</span>
+                            <strong id="prosperidade-fase">-</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Risco</span>
+                            <strong id="prosperidade-risco">-</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Aporte possível</span>
+                            <strong id="prosperidade-aporte">R$ 0,00</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Gasto livre sugerido</span>
+                            <strong id="prosperidade-limite">R$ 0,00</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="advisor-side">
+                    <h3>Simular meta grande</h3>
+                    <div class="form-group">
+                        <label>Meta patrimonial (R$)</label>
+                        <input type="number" id="meta-valor" value="1000000" step="1000">
+                    </div>
+                    <div class="two-cols">
+                        <div class="form-group">
+                            <label>Prazo em anos</label>
+                            <input type="number" id="meta-prazo" value="10" min="1" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label>Retorno anual estimado (%)</label>
+                            <input type="number" id="meta-retorno" value="6" min="0" step="0.5">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="loadProsperidade()">Recalcular Plano</button>
+                </div>
+            </div>
+
+            <div class="plan-band" id="prosperidade-marcos"></div>
+
+            <div class="two-cols">
+                <div class="card">
+                    <h3>Próximas ações</h3>
+                    <ul id="prosperidade-acoes" class="decision-list"></ul>
+                </div>
+                <div class="card">
+                    <h3>Meta simulada</h3>
+                    <div class="metric-line"><span>Aporte necessário</span><strong id="meta-aporte-necessario">R$ 0,00</strong></div>
+                    <div class="metric-line"><span>Aporte pelo orçamento</span><strong id="meta-aporte-orcamento">R$ 0,00</strong></div>
+                    <div class="metric-line"><span>Gap mensal</span><strong id="meta-gap">R$ 0,00</strong></div>
+                    <div class="suggestion-box" id="meta-leitura">Simule uma meta para ver o caminho.</div>
                 </div>
             </div>
         </div>
@@ -1181,6 +1408,7 @@
             if (id === 'alimentacao') loadAlimentacao();
             if (id === 'gastos') { loadCartoesSelect(); loadGastos(); }
             if (id === 'desejos') loadDesejos();
+            if (id === 'prosperidade') loadProsperidade();
             if (id === 'salvamento') loadSalvamento();
             if (id === 'config') loadConfig();
         }
@@ -1232,6 +1460,114 @@
             catch(e) { return '-'; }
         }
 
+        function faseLabel(fase) {
+            var mapa = {
+                eliminar_dividas: 'Eliminar dívidas',
+                montar_reserva: 'Montar reserva',
+                crescimento: 'Crescimento'
+            };
+            return mapa[fase] || String(fase || '-');
+        }
+
+        function riscoLabel(risco) {
+            var mapa = {
+                critico: 'Crítico',
+                alto: 'Alto',
+                moderado: 'Moderado',
+                atencao: 'Atenção',
+                controlado: 'Controlado'
+            };
+            return mapa[risco] || String(risco || '-');
+        }
+
+        async function loadProsperidade() {
+            var valor = document.getElementById('meta-valor');
+            var prazo = document.getElementById('meta-prazo');
+            var retorno = document.getElementById('meta-retorno');
+            var params = new URLSearchParams({
+                valor_meta: valor ? (valor.value || 1000000) : 1000000,
+                prazo_anos: prazo ? (prazo.value || 10) : 10,
+                retorno_anual_pct: retorno ? (retorno.value || 6) : 6
+            });
+            var res = await api('/api/prosperidade?' + params.toString());
+            if (!res || !res.ok) return;
+
+            var decisao = res.decisao || 'Aguardando análise.';
+            var foco = res.foco || '';
+            var risco = riscoLabel(res.risco);
+            var progresso = Number(res.progresso_onboarding || 0);
+
+            var advisorDecisao = document.getElementById('advisor-decisao');
+            var advisorFoco = document.getElementById('advisor-foco');
+            var advisorRisco = document.getElementById('advisor-risco');
+            var advisorLimite = document.getElementById('advisor-limite');
+            var advisorAporte = document.getElementById('advisor-aporte');
+            var advisorProgresso = document.getElementById('advisor-progresso');
+            var onboardingBar = document.getElementById('onboarding-bar');
+            var onboardingList = document.getElementById('onboarding-list');
+
+            if (advisorDecisao) advisorDecisao.textContent = decisao;
+            if (advisorFoco) advisorFoco.textContent = foco;
+            if (advisorRisco) advisorRisco.textContent = risco;
+            if (advisorLimite) advisorLimite.textContent = fmtMoney(res.limite_gasto_mes || 0);
+            if (advisorAporte) advisorAporte.textContent = fmtMoney(res.aporte_mensal_sugerido || 0);
+            if (advisorProgresso) advisorProgresso.textContent = progresso.toFixed(0) + '%';
+            if (onboardingBar) onboardingBar.style.width = Math.min(progresso, 100) + '%';
+            if (onboardingList) {
+                onboardingList.innerHTML = (res.etapas || []).map(function(e) {
+                    return '<div class="check-item ' + (e.feito ? 'done' : '') + '">' +
+                        '<span class="check-dot"></span>' +
+                        '<span><b>' + e.titulo + '</b><br><small style="color:var(--text-dim)">' + e.acao + '</small></span>' +
+                        '<button data-section="' + e.secao + '" onclick="showSection(this.dataset.section)">' + (e.feito ? 'Ver' : 'Fazer') + '</button>' +
+                    '</div>';
+                }).join('');
+            }
+
+            var pDecisao = document.getElementById('prosperidade-decisao');
+            var pDisclaimer = document.getElementById('prosperidade-disclaimer');
+            var pFase = document.getElementById('prosperidade-fase');
+            var pRisco = document.getElementById('prosperidade-risco');
+            var pAporte = document.getElementById('prosperidade-aporte');
+            var pLimite = document.getElementById('prosperidade-limite');
+            if (pDecisao) pDecisao.textContent = decisao;
+            if (pDisclaimer) pDisclaimer.textContent = res.disclaimer || '';
+            if (pFase) pFase.textContent = faseLabel(res.fase);
+            if (pRisco) pRisco.textContent = risco;
+            if (pAporte) pAporte.textContent = fmtMoney(res.aporte_mensal_sugerido || 0);
+            if (pLimite) pLimite.textContent = fmtMoney(res.limite_gasto_mes || 0);
+
+            var marcos = document.getElementById('prosperidade-marcos');
+            if (marcos) {
+                marcos.innerHTML = (res.marcos || []).map(function(m) {
+                    return '<div class="plan-step">' +
+                        '<h4>' + m.titulo + '</h4>' +
+                        '<strong>' + fmtMoney(m.valor || 0) + '</strong>' +
+                        '<p>' + m.descricao + '</p>' +
+                    '</div>';
+                }).join('');
+            }
+
+            var acoes = document.getElementById('prosperidade-acoes');
+            if (acoes) {
+                acoes.innerHTML = (res.proximas_acoes || []).map(function(a) {
+                    return '<li>' + a + '</li>';
+                }).join('');
+            }
+
+            var meta = res.meta || {};
+            var nec = document.getElementById('meta-aporte-necessario');
+            var orc = document.getElementById('meta-aporte-orcamento');
+            var gap = document.getElementById('meta-gap');
+            var leitura = document.getElementById('meta-leitura');
+            if (nec) nec.textContent = fmtMoney(meta.aporte_mensal_necessario || 0);
+            if (orc) orc.textContent = fmtMoney(meta.aporte_mensal_sugerido_pelo_orcamento || 0);
+            if (gap) {
+                gap.textContent = fmtMoney(meta.gap_mensal || 0);
+                gap.className = (Number(meta.gap_mensal || 0) <= 0) ? 'positive' : 'warning';
+            }
+            if (leitura) leitura.textContent = meta.leitura || '';
+        }
+
         // ==================== DASHBOARD ====================
         async function loadDashboard() {
             try {
@@ -1274,6 +1610,8 @@
                     document.getElementById('reserva').textContent = (res.percentual || 0).toFixed(1) + '%';
                     document.getElementById('reserva-bar').style.width = Math.min(res.percentual || 0, 100) + '%';
                 }
+
+                await loadProsperidade();
 
                 var lancs = await api('/api/lancamentos');
                 if (lancs && lancs.length) {
