@@ -1,5 +1,6 @@
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 import requests
 
 
@@ -24,7 +25,11 @@ class MarketService:
         tickers = tickers or DEFAULT_TICKERS
         tickers = tickers[:16]
         rows_by_ticker = {}
-        with ThreadPoolExecutor(max_workers=min(8, max(len(tickers), 1))) as executor:
+        try:
+            workers = max(1, int(os.getenv("AURUM_MARKET_WORKERS", "4") or 4))
+        except ValueError:
+            workers = 4
+        with ThreadPoolExecutor(max_workers=min(workers, max(len(tickers), 1))) as executor:
             futures = {executor.submit(self._quote, ticker): ticker for ticker in tickers}
             for future in as_completed(futures):
                 ticker = futures[future]

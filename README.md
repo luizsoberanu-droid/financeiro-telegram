@@ -279,3 +279,17 @@ Integracoes conversacionais no Telegram:
 - Check-up do analista: quando `TELEGRAM_AUTOMATIONS_ENABLED=true`, o Aurum envia todo dia uma leitura com risco do mes, saldo, dividas, limite seguro de credito, desejos ordenados por prioridade e proximas acoes.
 - Para receber mensagens automaticas, use `TELEGRAM_AUTOMATIONS_ENABLED=true`. Se quiser fixar um chat, use `TELEGRAM_DEFAULT_CHAT_ID`.
 - Para acordar o Render Free e receber check-up mesmo apos sono, configure um cron externo/UptimeRobot chamando `GET /api/analista/checkup?enviar_telegram=true`.
+
+## Render Free - modo economico de memoria
+
+O deploy foi ajustado para rodar com menos memoria no Render:
+- `WEB_CONCURRENCY=1` e `GUNICORN_THREADS=2` por padrao no Docker.
+- Cron interno fica desligado por padrao. Para ligar, use `AURUM_ENABLE_INTERNAL_CRON=true`.
+- Backup completo no Google Sheets depois de toda alteracao fica desligado por padrao. Para ligar, use `GOOGLE_SHEETS_BACKUP_EVERY_MUTATION=true`.
+- O backup manual continua disponivel pelo painel/endpoint de salvamento.
+- A geracao de PDF carrega `reportlab` somente quando alguem pede relatorio.
+
+Configuracao recomendada no Render Free:
+- Manter `AURUM_ENABLE_INTERNAL_CRON=false`.
+- Usar UptimeRobot/cron externo para chamar `/api/analista/checkup?enviar_telegram=true`.
+- Manter backup automatico por mutacao desligado e usar `Salvar agora no Google Sheets` apos mudancas importantes.

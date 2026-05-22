@@ -1,8 +1,8 @@
+import os
 from flask import Flask, render_template, send_from_directory, request
 from models.database import init_db
 from routes.api import api_bp
 from routes.telegram import telegram_bp
-import os
 
 app = Flask(__name__)
 
@@ -14,35 +14,47 @@ except Exception as e:
     print(f"⚠️ Aviso: erro ao inicializar banco de dados: {e}")
 
 
-# Restaurar dados do Google Sheets quando o Render reiniciar com SQLite vazio/novo
-try:
-    from models.database import SessionLocal
-    from services.sheets_backup_service import SheetsBackupService
+def _env_true(name, default="false"):
+    return os.getenv(name, default).lower() in ["true", "1", "sim", "yes"]
 
-    db_restore = SessionLocal()
+
+# Restaurar dados do Google Sheets quando o Render reiniciar com SQLite vazio/novo.
+# So carrega bibliotecas do Google se a integracao estiver configurada.
+if _env_true("GOOGLE_SHEETS_RESTORE_ON_START", "true") and os.getenv("GOOGLE_SHEETS_ID") and os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON"):
     try:
-        result_restore = SheetsBackupService(db_restore).restore_if_database_looks_fresh()
-        if result_restore.get("ok"):
-            print(f"✅ Dados restaurados do Google Sheets: {result_restore}")
-        else:
-            print(f"ℹ️ Restore Google Sheets não aplicado: {result_restore}")
-    finally:
-        db_restore.close()
-except Exception as e:
-    print(f"⚠️ Aviso: restore Google Sheets não executado: {e}")
+        from models.database import SessionLocal
+        from services.sheets_backup_service import SheetsBackupService
+
+        db_restore = SessionLocal()
+        try:
+            result_restore = SheetsBackupService(db_restore).restore_if_database_looks_fresh()
+            if result_restore.get("ok"):
+                print(f"✅ Dados restaurados do Google Sheets: {result_restore}")
+            else:
+                print(f"ℹ️ Restore Google Sheets não aplicado: {result_restore}")
+        finally:
+            db_restore.close()
+    except Exception as e:
+        print(f"⚠️ Aviso: restore Google Sheets não executado: {e}")
+else:
+    print("ℹ️ Restore Google Sheets ignorado no boot para economizar memória.")
 
 # Registrar blueprints
 app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(telegram_bp)
 
-# Iniciar cron jobs com proteção — só inicia se o scheduler estiver disponível
+# Iniciar cron jobs somente quando habilitado. No Render Free, manter scheduler
+# dentro do web worker costuma aumentar consumo de memoria e reinicios.
 cron_scheduler = None
-try:
-    from utils.cron_jobs import iniciar_cron_jobs
-    cron_scheduler = iniciar_cron_jobs(app)
-    print("✅ Cron jobs iniciados")
-except Exception as e:
-    print(f"⚠️ Aviso: cron jobs não iniciados: {e}")
+if _env_true("AURUM_ENABLE_INTERNAL_CRON", "false"):
+    try:
+        from utils.cron_jobs import iniciar_cron_jobs
+        cron_scheduler = iniciar_cron_jobs(app)
+        print("✅ Cron jobs iniciados")
+    except Exception as e:
+        print(f"⚠️ Aviso: cron jobs não iniciados: {e}")
+else:
+    print("ℹ️ Cron interno desligado. Use cron externo chamando os endpoints do app.")
 
 
 @app.after_request
@@ -66,7 +78,7 @@ def backup_google_sheets_after_mutation(response):
     try:
         if request.method in ["POST", "PUT", "DELETE"] and (
             request.path.startswith("/api/") or request.path.startswith("/webhooks/")
-        ):
+        ) and _env_true("GOOGLE_SHEETS_BACKUP_EVERY_MUTATION", "false"):
             from models.database import SessionLocal
             from services.sheets_backup_service import SheetsBackupService
 

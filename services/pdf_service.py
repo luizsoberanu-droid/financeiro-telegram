@@ -2,17 +2,44 @@ from datetime import datetime, date
 from io import BytesIO
 import os
 
-try:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import cm
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-    REPORTLAB_AVAILABLE = True
-except ImportError:
-    REPORTLAB_AVAILABLE = False
-    print("reportlab nao instalado. PDF sera gerado em formato HTML.")
+REPORTLAB_AVAILABLE = None
+
+
+def _load_reportlab():
+    global REPORTLAB_AVAILABLE, A4, getSampleStyleSheet, ParagraphStyle, cm
+    global SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    global colors, TA_CENTER, TA_LEFT, TA_RIGHT
+
+    if REPORTLAB_AVAILABLE is not None:
+        return REPORTLAB_AVAILABLE
+
+    try:
+        from reportlab.lib.pagesizes import A4 as _A4
+        from reportlab.lib.styles import getSampleStyleSheet as _getSampleStyleSheet, ParagraphStyle as _ParagraphStyle
+        from reportlab.lib.units import cm as _cm
+        from reportlab.platypus import SimpleDocTemplate as _SimpleDocTemplate, Paragraph as _Paragraph, Spacer as _Spacer, Table as _Table, TableStyle as _TableStyle, PageBreak as _PageBreak
+        from reportlab.lib import colors as _colors
+        from reportlab.lib.enums import TA_CENTER as _TA_CENTER, TA_LEFT as _TA_LEFT, TA_RIGHT as _TA_RIGHT
+
+        A4 = _A4
+        getSampleStyleSheet = _getSampleStyleSheet
+        ParagraphStyle = _ParagraphStyle
+        cm = _cm
+        SimpleDocTemplate = _SimpleDocTemplate
+        Paragraph = _Paragraph
+        Spacer = _Spacer
+        Table = _Table
+        TableStyle = _TableStyle
+        PageBreak = _PageBreak
+        colors = _colors
+        TA_CENTER = _TA_CENTER
+        TA_LEFT = _TA_LEFT
+        TA_RIGHT = _TA_RIGHT
+        REPORTLAB_AVAILABLE = True
+    except ImportError:
+        REPORTLAB_AVAILABLE = False
+        print("reportlab nao instalado. PDF sera gerado em formato HTML.")
+    return REPORTLAB_AVAILABLE
 
 class PDFService:
     def __init__(self, db_session):
@@ -35,7 +62,7 @@ class PDFService:
         parcelas = self.db.query(Parcela).filter(Parcela.mes_ref == mes_ref).all()
         contas = self.db.query(ContaFixa).all()
 
-        if REPORTLAB_AVAILABLE:
+        if _load_reportlab():
             return self._gerar_pdf_reportlab(mes_ref, saldo, dividas, reserva, plano, lancamentos, parcelas, contas)
         else:
             return self._gerar_pdf_html(mes_ref, saldo, dividas, reserva, plano, lancamentos, parcelas, contas)

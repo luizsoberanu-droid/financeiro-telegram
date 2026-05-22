@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.11-slim
 
 # Variáveis de ambiente
-ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PYTHONFAULTHANDLER=1     PATH=/root/.local/bin:$PATH     PORT=5000
+ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PYTHONFAULTHANDLER=1     PYTHONMALLOC=malloc     MALLOC_ARENA_MAX=2     PATH=/root/.local/bin:$PATH     PORT=5000     WEB_CONCURRENCY=1     GUNICORN_THREADS=2
 
 # Instalar dependências de runtime mínimas
 RUN apt-get update && apt-get install -y --no-install-recommends     libpq5     curl     && rm -rf /var/lib/apt/lists/*
@@ -50,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3     CMD c
 EXPOSE $PORT
 
 # Comando para iniciar a aplicação
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --access-logfile - --error-logfile - app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --workers ${WEB_CONCURRENCY:-1} --threads ${GUNICORN_THREADS:-2} --timeout 120 --max-requests 200 --max-requests-jitter 30 --access-logfile - --error-logfile - app:app"]

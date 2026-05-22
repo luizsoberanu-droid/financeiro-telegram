@@ -5,7 +5,6 @@ import re
 import unicodedata
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional
-from openai import OpenAI
 
 # =========================
 # CONFIGURACAO DE IA GRATUITA
@@ -19,17 +18,31 @@ PROVIDER = None
 MODEL = None
 
 if GROQ_API_KEY:
-    client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
     PROVIDER = "groq"
     MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 elif GOOGLE_API_KEY:
-    client = OpenAI(api_key=GOOGLE_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
     PROVIDER = "google"
     MODEL = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash")
 else:
     print("⚠️  Nenhuma API key configurada. IA funcionara em modo fallback (regras).")
     print("   Cadastre-se em: https://console.groq.com (sem cartao de credito)")
     print("   Ou: https://aistudio.google.com (sem cartao de credito)")
+
+
+def _get_ai_client():
+    global client
+    if client is not None:
+        return client
+    if not PROVIDER or not MODEL:
+        return None
+
+    from openai import OpenAI
+
+    if PROVIDER == "groq":
+        client = OpenAI(api_key=GROQ_API_KEY, base_url="https://api.groq.com/openai/v1")
+    elif PROVIDER == "google":
+        client = OpenAI(api_key=GOOGLE_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+    return client
 
 # =========================
 # FERRAMENTAS (TOOLS)
@@ -734,7 +747,8 @@ class AurumCapitalAI:
         self.db.commit()
 
     def process(self, user_message: str, chat_id: str = "default") -> str:
-        if not client or not MODEL:
+        ai_client = _get_ai_client()
+        if not ai_client or not MODEL:
             return self._fallback_response(user_message)
 
         try:
@@ -743,7 +757,7 @@ class AurumCapitalAI:
             messages.extend(history)
             messages.append({"role": "user", "content": user_message})
 
-            response = client.chat.completions.create(
+            response = ai_client.chat.completions.create(
                 model=MODEL,
                 messages=messages,
                 tools=TOOLS,
@@ -780,7 +794,7 @@ class AurumCapitalAI:
                         "content": json.dumps(result, ensure_ascii=False)
                     })
 
-            final_response = client.chat.completions.create(
+            final_response = ai_client.chat.completions.create(
                 model=MODEL,
                 messages=messages,
                 temperature=0.7,

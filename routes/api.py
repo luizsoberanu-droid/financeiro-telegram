@@ -1,9 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file
-from models.database import get_db, init_db, SessionLocal
-from services.finance_service import FinanceService
+from models.database import SessionLocal
 from services.ai_service import AurumCapitalAI, FinancialTools
-from services.pdf_service import PDFService
-from services.alert_service import AlertService
 from utils.helpers import month_key
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -170,6 +167,7 @@ def api_lancar():
     db = get_db_session()
     try:
         p = request.get_json()
+        from services.finance_service import FinanceService
         svc = FinanceService(db)
         item = svc.add_lancamento(
             p["descricao"], p["valor"],
@@ -189,6 +187,7 @@ def api_parcelar():
     db = get_db_session()
     try:
         p = request.get_json()
+        from services.finance_service import FinanceService
         svc = FinanceService(db)
         criadas = svc.add_parcelado(
             p["descricao"], p["valor"], int(p["total_parcelas"]), p["cartao"]
@@ -577,6 +576,7 @@ def api_relatorio_pdf():
     """Gera e retorna relatório mensal em PDF"""
     db = get_db_session()
     try:
+        from services.pdf_service import PDFService
         mes_ref = request.args.get('mes', datetime.now().strftime("%Y-%m"))
         svc = PDFService(db)
         pdf_bytes = svc.gerar_relatorio_mensal(mes_ref)
@@ -595,6 +595,7 @@ def api_relatorio_html():
     """Gera relatório mensal em HTML (fallback se reportlab não instalado)"""
     db = get_db_session()
     try:
+        from services.pdf_service import PDFService
         mes_ref = request.args.get('mes', datetime.now().strftime("%Y-%m"))
         svc = PDFService(db)
         html_bytes = svc.gerar_relatorio_mensal(mes_ref)
@@ -626,6 +627,7 @@ def api_verificar_alertas():
         p = request.get_json() or {}
         chat_id = p.get("chat_id", "default")
 
+        from services.alert_service import AlertService
         alert_svc = AlertService(db)
         alertas = alert_svc.verificar_todos_alertas(chat_id)
 
