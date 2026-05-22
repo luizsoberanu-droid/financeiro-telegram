@@ -157,7 +157,7 @@ def gerar_relatorio_mensal(app):
             pdf_bytes = svc.gerar_relatorio_mensal(mes_ref)
 
             # Salvar PDF temporário
-            filename = f"/tmp/relatorio_nexus_{mes_ref}.pdf"
+            filename = f"/tmp/relatorio_aurum_capital_{mes_ref}.pdf"
             with open(filename, 'wb') as f:
                 f.write(pdf_bytes)
 

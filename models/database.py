@@ -196,7 +196,7 @@ class Alerta(Base):
 # ENGINE E SESSION
 # =========================
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///nexus.db")
+DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("AURUM_DATABASE_URL", "sqlite:///aurum.db"))
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 

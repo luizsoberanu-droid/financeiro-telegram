@@ -1,6 +1,6 @@
-# 🚀 NEXUS AI v2.2
+# Aurum Capital v2.2
 
-Assistente financeiro pessoal com **Inteligência Artificial REAL**, **alertas automáticos**, **PWA para celular** e **relatórios PDF**.
+Analista patrimonial pessoal com **Inteligência Artificial REAL**, **alertas automáticos**, **PWA para celular** e **relatórios PDF**.
 100% gratuito, 100% open source.
 
 ---
@@ -148,7 +148,7 @@ O Telegram nao depende mais de comandos fixos. A IA entende a intencao, pergunta
 ## 📊 ESTRUTURA DO PROJETO
 
 ```
-nexus-ai/
+aurum-capital/
 ├── app.py                    # Entry point + PWA + Cron
 ├── requirements.txt
 ├── models/
@@ -197,7 +197,7 @@ Telegram:
 
 
 
-## NEXUS AI v6 — Disciplina pesada + backup completo
+## Aurum Capital v6 — Disciplina pesada + backup completo
 
 Novidades:
 - IA do Telegram com fallback: se Google/Groq falhar, responde por regras financeiras.
@@ -214,7 +214,7 @@ SELF_URL=https://SEU-APP.onrender.com
 Para manter Render Free acordado com maior estabilidade, use também UptimeRobot a cada 5 minutos apontando para `/api/ping`.
 
 
-## NEXUS AI v7 — Cartao alimentacao + Cofre vitalicio
+## Aurum Capital v7 — Cartao alimentacao + Cofre vitalicio
 
 Novidades desta melhoria:
 - Saldo do cartao alimentacao no dashboard principal.
@@ -245,7 +245,7 @@ Rotina recomendada:
 4. Se o Render reiniciar com banco vazio, restaure pelo Google Sheets.
 
 
-## NEXUS AI v8 — Telegram como analista patrimonial
+## Aurum Capital v8 — Telegram como analista patrimonial
 
 O Telegram agora deixa de funcionar como um menu de comandos programados e passa a responder como conversa direta com IA.
 
@@ -269,6 +269,6 @@ Integracoes conversacionais no Telegram:
 - `quanto posso gastar no cartao este mes?`: mostra limite real, limite seguro mensal, uso atual e disponivel.
 - `quero comprar celular de R$ 2500`: adiciona na lista de desejos e analisa quando pode comprar.
 - `adiciona PlayStation 5 na lista de desejos`: busca media real de preco na internet, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.
-- Revisao mensal: quando as automacoes Telegram estao ligadas, o NEXUS consulta a media dos desejos todo mes, guarda historico e avisa se o preco cair ou se a compra ficar segura.
-- Check-up sazonal: o NEXUS cruza estacao do ano e clima para sugerir itens como roupas de frio, roupas leves, cobertor ou ventilador antes da necessidade apertar.
+- Revisao mensal: quando as automacoes Telegram estao ligadas, o Aurum Capital consulta a media dos desejos todo mes, guarda historico e avisa se o preco cair ou se a compra ficar segura.
+- Check-up sazonal: o Aurum Capital cruza estacao do ano e clima para sugerir itens como roupas de frio, roupas leves, cobertor ou ventilador antes da necessidade apertar.
 - Para receber mensagens automaticas, use `TELEGRAM_AUTOMATIONS_ENABLED=true`. Se quiser fixar um chat, use `TELEGRAM_DEFAULT_CHAT_ID`.

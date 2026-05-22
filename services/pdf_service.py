@@ -139,7 +139,7 @@ class PDFService:
 
         story.append(Spacer(1, 30))
         story.append(Paragraph(
-            "<i>Relatorio gerado por NEXUS AI em " + datetime.now().strftime('%d/%m/%Y %H:%M') + "</i>",
+            "<i>Relatorio gerado por Aurum Capital em " + datetime.now().strftime('%d/%m/%Y %H:%M') + "</i>",
             ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.grey, alignment=TA_CENTER)
         ))
 
@@ -210,7 +210,7 @@ class PDFService:
             + secao_lancamentos
             + secao_dividas
             + "<h2>Recomendacoes da IA</h2><ul>" + itens_rec + "</ul>"
-            "<div class='footer'><p>Relatorio gerado por NEXUS AI</p><p>" + datetime.now().strftime('%d/%m/%Y %H:%M') + "</p></div>"
+            "<div class='footer'><p>Relatorio gerado por Aurum Capital</p><p>" + datetime.now().strftime('%d/%m/%Y %H:%M') + "</p></div>"
             "</body></html>"
         )
 

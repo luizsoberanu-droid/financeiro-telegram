@@ -81,7 +81,7 @@ def backup_google_sheets_after_mutation(response):
 
 @app.route("/api/ping")
 def ping():
-    return {"ok": True, "service": "nexus-ai", "ping": "alive"}
+    return {"ok": True, "service": "aurum-capital", "ping": "alive"}
 
 @app.route("/")
 def home():
@@ -89,7 +89,7 @@ def home():
         return render_template("dashboard.html")
     except Exception as e:
         return f"""
-        <h1>🚀 NEXUS AI v2.2</h1>
+        <h1>Aurum Capital v2.2</h1>
         <p>Erro ao carregar dashboard: {str(e)}</p>
         <p><a href="/api/status">Ver status API</a></p>
         """

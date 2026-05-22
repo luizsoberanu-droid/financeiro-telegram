@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexus-ai-v2-final-20260423';
+const CACHE_NAME = 'aurum-capital-v3-20260522';
 const STATIC_ASSETS = [
   '/manifest.json'
 ];

@@ -111,7 +111,7 @@ def buscar_preco_mercado_livre(produto):
         url = "https://api.mercadolibre.com/sites/MLB/search"
         params = {"q": produto, "limit": 20}
         headers = {
-            "User-Agent": "NEXUS-Financeiro/1.0 (+https://github.com/luizsoberanu-droid/financeiro-telegram)",
+            "User-Agent": "AurumCapital/1.0 (+https://github.com/luizsoberanu-droid/financeiro-telegram)",
             "Accept": "application/json",
             "Accept-Language": "pt-BR,pt;q=0.9",
         }

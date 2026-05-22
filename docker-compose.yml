@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  nexus-ai:
+  aurum-capital:
     build: .
     ports:
       - "5000:5000"
@@ -10,7 +10,7 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - DATABASE_URL=sqlite:///data/nexus.db
+      - DATABASE_URL=sqlite:///data/aurum.db
     volumes:
       - ./data:/app/data
     restart: unless-stopped

@@ -6,7 +6,7 @@ import requests
 from datetime import datetime
 
 from models.database import get_db
-from services.ai_service import NexusAI
+from services.ai_service import AurumCapitalAI
 
 telegram_bp = Blueprint('telegram', __name__)
 
@@ -128,7 +128,7 @@ def _formatar_limites(db):
 
     resumo = CardLimitService(db).resumo_limites()
     linhas = [
-        "NEXUS limite inteligente do cartao",
+        "Aurum Capital limite inteligente do cartao",
         "",
         f"Limite real informado: R$ {resumo['limite_total_real']:.2f}",
         f"Limite seguro do mes: R$ {resumo['limite_total_seguro_mes']:.2f}",
@@ -390,18 +390,18 @@ def tratar_integracoes(db, chat_id, text):
 
 def resposta_ia_segura(db, chat_id, text):
     try:
-        resposta = NexusAI(db).process(text, chat_id)
+        resposta = AurumCapitalAI(db).process(text, chat_id)
         if resposta and str(resposta).strip():
             return resposta
     except Exception as e:
         print(f"Aviso: IA externa falhou no Telegram, usando fallback: {e}")
 
     try:
-        tools = NexusAI(db).tools
+        tools = AurumCapitalAI(db).tools
         saldo = tools.get_saldo_atual()
         dividas = tools.get_analise_dividas()
         return (
-            "NEXUS modo analista patrimonial\n\n"
+            "Aurum Capital modo analista patrimonial\n\n"
             f"Receita: R$ {saldo['receita_total']:.2f}\n"
             f"Saldo final: R$ {saldo.get('saldo_final', saldo['saldo_projetado']):.2f}\n"
             f"Divida ajustada: R$ {dividas['total_divida']:.2f}\n"

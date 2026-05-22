@@ -194,7 +194,7 @@ TOOLS = [
 # SYSTEM PROMPT
 # =========================
 
-SYSTEM_PROMPT = """Voce e o NEXUS, analista patrimonial e estrategista financeiro particular do usuario. Sua missao e controlar a renda, proteger contra decisoes ruins e construir prosperidade real no longo prazo.
+SYSTEM_PROMPT = """Voce e o Aurum Capital, analista patrimonial e estrategista financeiro particular do usuario. Sua missao e controlar a renda, proteger contra decisoes ruins e construir prosperidade real no longo prazo.
 
 🎭 SUA PERSONALIDADE:
 • Direto, sem rodeios, mas sempre empatico e humano
@@ -666,7 +666,7 @@ class FinancialTools:
 # MOTOR DE IA
 # =========================
 
-class NexusAI:
+class AurumCapitalAI:
     def __init__(self, db_session):
         self.db = db_session
         self.tools = FinancialTools(db_session)
@@ -827,7 +827,7 @@ class NexusAI:
                     parcelas=self._extrair_parcelas(user_message),
                 )
                 return (
-                    "NEXUS analista patrimonial (modo fallback)\n\n"
+                    "Aurum Capital analista patrimonial (modo fallback)\n\n"
                     f"Produto: {analise['produto']}\n"
                     f"Valor: R$ {analise['valor_total']:.2f} em {analise['parcelas']}x de R$ {analise['valor_parcela']:.2f}\n"
                     f"Recomendacao: {analise['recomendacao']}\n"
@@ -876,7 +876,7 @@ class NexusAI:
                     radar_txt = "\n\nRadar de mercado indisponivel agora. Nao vou inventar cotacoes."
 
             return (
-                "NEXUS analista patrimonial (modo fallback)\n\n"
+                "Aurum Capital analista patrimonial (modo fallback)\n\n"
                 f"Fase atual: {visao['fase']}\n"
                 f"Foco: {visao['foco']}\n"
                 f"Receita: R$ {visao['receita_total']:.2f}\n"
@@ -902,7 +902,7 @@ class NexusAI:
             )
 
         return (
-            f"👋 Ola! Sou o NEXUS (modo fallback).\n"
+            f"👋 Ola! Sou o Aurum Capital (modo fallback).\n"
             f"Seu saldo: R$ {saldo['saldo_projetado']:.2f} | Divida: R$ {dividas['total_divida']:.2f}\n\n"
             f"Para IA completa, cadastre GROQ_API_KEY ou GOOGLE_API_KEY no Render."
         )

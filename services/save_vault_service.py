@@ -4,7 +4,7 @@ from datetime import datetime
 class SaveVaultService:
     """Portable JSON snapshot for long-term personal data ownership."""
 
-    SNAPSHOT_VERSION = "nexus-vitalicio-1"
+    SNAPSHOT_VERSION = "aurum-capital-vitalicio-1"
 
     def __init__(self, db_session):
         self.db = db_session
@@ -70,7 +70,7 @@ class SaveVaultService:
 
     def snapshot(self):
         data = {
-            "app": "NEXUS AI",
+            "app": "Aurum Capital",
             "snapshot_version": self.SNAPSHOT_VERSION,
             "generated_at": datetime.utcnow().isoformat(),
             "tables": {},

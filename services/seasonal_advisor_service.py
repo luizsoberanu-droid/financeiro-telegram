@@ -40,8 +40,8 @@ class SeasonalAdvisorService:
 
     def _clima_atual(self):
         try:
-            lat = float(os.getenv("NEXUS_WEATHER_LAT", "-23.5505"))
-            lon = float(os.getenv("NEXUS_WEATHER_LON", "-46.6333"))
+            lat = float(os.getenv("AURUM_WEATHER_LAT", "-23.5505"))
+            lon = float(os.getenv("AURUM_WEATHER_LON", "-46.6333"))
             url = "https://api.open-meteo.com/v1/forecast"
             params = {
                 "latitude": lat,
@@ -49,7 +49,7 @@ class SeasonalAdvisorService:
                 "current": "temperature_2m,precipitation,weather_code",
                 "daily": "temperature_2m_min,temperature_2m_max",
                 "forecast_days": 7,
-                "timezone": os.getenv("NEXUS_WEATHER_TZ", "America/Sao_Paulo"),
+                "timezone": os.getenv("AURUM_WEATHER_TZ", "America/Sao_Paulo"),
             }
             try:
                 r = requests.get(url, params=params, timeout=12)
@@ -103,7 +103,7 @@ class SeasonalAdvisorService:
             pergunta = "Revisei a estacao e sua lista de desejos. Nao vi urgencia sazonal clara agora."
 
         linhas = [
-            "Check-up sazonal do NEXUS",
+            "Check-up sazonal do Aurum Capital",
             "",
             f"Estacao atual: {estacao}. Proxima: {proxima} em {dias} dia(s), a partir de {inicio_proxima.strftime('%d/%m')}.",
         ]

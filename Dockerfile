@@ -1,8 +1,8 @@
 # ============================================
-# NEXUS AI v2.3 - Dockerfile para Render
+# Aurum Capital v2.3 - Dockerfile para Render
 # ============================================
-# Build: docker build -t nexus-ai .
-# Run:   docker run -p 5000:5000 nexus-ai
+# Build: docker build -t aurum-capital .
+# Run:   docker run -p 5000:5000 aurum-capital
 # ============================================
 
 # Etapa 1: Build

@@ -40,7 +40,7 @@ class MarketService:
             r = requests.get(
                 url,
                 params={"range": "6mo", "interval": "1d"},
-                headers={"User-Agent": "Mozilla/5.0 NexusFinanceBot/1.0"},
+                headers={"User-Agent": "Mozilla/5.0 AurumCapitalBot/1.0"},
                 timeout=12,
             )
             if not r.ok:

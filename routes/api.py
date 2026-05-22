@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, send_file
 from models.database import get_db, init_db, SessionLocal
 from services.finance_service import FinanceService
-from services.ai_service import NexusAI, FinancialTools
+from services.ai_service import AurumCapitalAI, FinancialTools
 from services.pdf_service import PDFService
 from services.alert_service import AlertService
 from utils.helpers import month_key
@@ -17,7 +17,7 @@ def get_db_session() -> Session:
 
 @api_bp.route('/health')
 def health():
-    return jsonify({"ok": True, "service": "nexus-ai-v2", "version": "2.2.0"})
+    return jsonify({"ok": True, "service": "aurum-capital", "version": "2.2.0"})
 
 @api_bp.route('/status')
 def api_status():
@@ -404,7 +404,7 @@ def api_relatorio_pdf():
             BytesIO(pdf_bytes),
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=f'relatorio_nexus_{mes_ref}.pdf'
+            download_name=f'relatorio_aurum_capital_{mes_ref}.pdf'
         )
     finally:
         db.close()
@@ -465,7 +465,7 @@ def api_testar_alertas():
         chat_id = p.get("chat_id", "default")
 
         from services.alert_service import telegram_send
-        telegram_send(chat_id, "Teste de alerta do NEXUS AI!\n\n""Se voce recebeu esta mensagem, os alertas automaticos estao configurados corretamente.")
+        telegram_send(chat_id, "Teste de alerta do Aurum Capital!\n\n""Se voce recebeu esta mensagem, os alertas automaticos estao configurados corretamente.")
 
         return jsonify({"ok": True, "mensagem": "Alerta de teste enviado!"})
     finally:
@@ -635,7 +635,7 @@ def api_salvamento_snapshot():
         from services.save_vault_service import SaveVaultService
         payload = SaveVaultService(db).snapshot()
         raw = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-        filename = "nexus_snapshot_" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".json"
+        filename = "aurum_capital_snapshot_" + datetime.now().strftime("%Y-%m-%d_%H-%M") + ".json"
         return send_file(
             BytesIO(raw),
             mimetype='application/json',
