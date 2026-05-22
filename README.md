@@ -230,6 +230,7 @@ Novidades desta melhoria:
 
 Novos endpoints:
 - `GET /api/saldo/utilizacao`
+- `GET /api/mercado/analise`
 - `GET /api/alimentacao`
 - `POST /api/alimentacao/config`
 - `POST /api/alimentacao/movimento`
@@ -270,6 +271,7 @@ Integracoes conversacionais no Telegram:
 - `meu limite do Nubank e R$ 5000`: registra o limite real do cartao.
 - `quanto posso gastar no cartao este mes?`: mostra limite real, limite seguro mensal, uso atual e disponivel.
 - `quanto posso usar do saldo?`: informa se pode usar mais, quanto ainda esta liberado com seguranca ou quanto precisa reduzir.
+- `onde investir meu dinheiro agora?`: cruza renda, dividas, reserva, saldo livre, renda fixa, bancos, ETFs e acoes para montar uma lista de estudo com controle de risco.
 - `quero comprar celular de R$ 2500`: adiciona na lista de desejos e analisa quando pode comprar.
 - `adiciona PlayStation 5 na lista de desejos`: busca media real de preco na internet, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.
 - Revisao mensal: quando as automacoes Telegram estao ligadas, o Aurum Capital consulta a media dos desejos todo mes, guarda historico e avisa se o preco cair ou se a compra ficar segura.

@@ -417,6 +417,30 @@ def _tratar_saldo_utilizacao(db, chat_id, text):
     return AdvisorService(db).saldo_utilizacao()["mensagem"]
 
 
+def _tratar_analise_mercado(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = [
+        "onde investir",
+        "analise o mercado",
+        "mercado atual",
+        "acoes",
+        "acao",
+        "etf",
+        "dolar",
+        "renda fixa",
+        "tesouro",
+        "cdb",
+        "bancos para investir",
+        "investir em bancos",
+        "quais bancos",
+    ]
+    if not any(t in msg for t in gatilhos):
+        return None
+
+    from services.investment_advisor_service import InvestmentAdvisorService
+    return InvestmentAdvisorService(db).analisar()["mensagem"]
+
+
 def _tratar_checkup_analista(db, chat_id, text):
     msg = _normalizar(text)
     gatilhos = [
@@ -431,7 +455,7 @@ def _tratar_checkup_analista(db, chat_id, text):
 
 
 def tratar_integracoes(db, chat_id, text):
-    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_saldo_utilizacao, _tratar_desejo, _tratar_lancamento, _tratar_checkup_analista]:
+    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_saldo_utilizacao, _tratar_desejo, _tratar_lancamento, _tratar_analise_mercado, _tratar_checkup_analista]:
         resposta = handler(db, chat_id, text)
         if resposta:
             return resposta

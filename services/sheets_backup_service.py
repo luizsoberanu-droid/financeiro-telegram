@@ -210,7 +210,7 @@ class SheetsBackupService:
             ).execute()
 
             values = result.get("values", [])
-            if len(values) < 2:
+            if not values:
                 continue
 
             headers = values[0]
@@ -218,6 +218,10 @@ class SheetsBackupService:
 
             if replace:
                 self.db.query(model).delete()
+
+            if len(values) < 2:
+                restored[tab] = 0
+                continue
 
             count = 0
             for row in values[1:]:

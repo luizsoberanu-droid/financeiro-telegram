@@ -37,6 +37,18 @@ def api_saldo_utilizacao():
     finally:
         db.close()
 
+@api_bp.route('/mercado/analise')
+def api_mercado_analise():
+    db = get_db_session()
+    try:
+        from services.investment_advisor_service import InvestmentAdvisorService
+
+        tickers_arg = request.args.get("tickers", "").strip()
+        tickers = [t.strip().upper() for t in tickers_arg.split(",") if t.strip()] if tickers_arg else None
+        return jsonify(InvestmentAdvisorService(db).analisar(tickers))
+    finally:
+        db.close()
+
 # ==================== CONTAS FIXAS ====================
 @api_bp.route('/contas')
 def api_contas():
@@ -267,11 +279,12 @@ def api_delete_divida(id):
         from models.database import Divida
         div = db.query(Divida).filter(Divida.id == id).first()
         if not div:
-            return jsonify({"ok": False, "erro": "divida nao encontrada"}), 404
+            return jsonify({"ok": True, "deleted": False, "already_removed": True, "id": id})
 
         db.delete(div)
         db.commit()
-        return jsonify({"ok": True})
+        restante = db.query(Divida).count()
+        return jsonify({"ok": True, "deleted": True, "id": id, "remaining": restante})
     finally:
         db.close()
 

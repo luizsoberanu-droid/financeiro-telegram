@@ -745,6 +745,10 @@
                 <div class="icon">AI</div>
                 <div class="label">Plano de Prosperidade</div>
             </div>
+            <div class="quick-action-btn" onclick="showSection('mercado')">
+                <div class="icon">MK</div>
+                <div class="label">Mercado</div>
+            </div>
             <div class="quick-action-btn" onclick="exportarPDF()">
                 <div class="icon">PDF</div>
                 <div class="label">Exportar PDF</div>
@@ -764,6 +768,7 @@
             <div class="nav-tab" onclick="showSection('gastos')">Gastos</div>
             <div class="nav-tab" onclick="showSection('desejos')">Desejos</div>
             <div class="nav-tab" onclick="showSection('prosperidade')">Prosperidade</div>
+            <div class="nav-tab" onclick="showSection('mercado')">Mercado</div>
             <div class="nav-tab" onclick="showSection('salvamento')">Cofre</div>
             <div class="nav-tab" onclick="showSection('config')">Configuração</div>
         </div>
@@ -968,6 +973,73 @@
                     <div class="metric-line"><span>Gap mensal</span><strong id="meta-gap">R$ 0,00</strong></div>
                     <div class="suggestion-box" id="meta-leitura">Simule uma meta para ver o caminho.</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- SECTION: MERCADO E INVESTIMENTOS -->
+        <div id="mercado" class="section">
+            <h2 class="section-title">Mercado e Investimentos</h2>
+
+            <div class="advisor-panel">
+                <div class="advisor-main">
+                    <div class="advisor-kicker">Analista de mercado</div>
+                    <h2 id="mercado-decisao">Carregando leitura do mercado...</h2>
+                    <p id="mercado-observacao">O Aurum cruza sua fase financeira com dados de mercado antes de sugerir onde estudar aportes.</p>
+                    <div class="advisor-metrics">
+                        <div class="mini-metric">
+                            <span>Fase de investimento</span>
+                            <strong id="mercado-fase">-</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Perfil operacional</span>
+                            <strong id="mercado-perfil">-</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Aporte possivel</span>
+                            <strong id="mercado-aporte">R$ 0,00</strong>
+                        </div>
+                        <div class="mini-metric">
+                            <span>Divida ajustada</span>
+                            <strong id="mercado-divida">R$ 0,00</strong>
+                        </div>
+                    </div>
+                    <p id="mercado-alerta" class="advisor-guidance-inline">Opiniao educativa, nao ordem de compra nem promessa de retorno.</p>
+                </div>
+                <div class="advisor-side">
+                    <h3>Consulta de ativos</h3>
+                    <p style="color:var(--text-dim);line-height:1.45;">Use tickers do Yahoo Finance separados por virgula para comparar acoes, ETFs e bancos.</p>
+                    <div class="form-group">
+                        <label>Tickers opcionais</label>
+                        <input type="text" id="mercado-tickers" placeholder="Ex: ITUB4.SA,BBAS3.SA,IVVB11.SA">
+                    </div>
+                    <button class="btn btn-primary" onclick="loadMercado()">Recalcular Mercado</button>
+                </div>
+            </div>
+
+            <div class="two-cols">
+                <div class="card">
+                    <h3>Carteira sugerida para sua fase</h3>
+                    <ul id="mercado-carteira" class="decision-list"></ul>
+                </div>
+                <div class="card">
+                    <h3>Bancos e renda fixa</h3>
+                    <ul id="mercado-renda-fixa" class="decision-list"></ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Acoes e ETFs para estudo</h3>
+                <div class="table-container">
+                    <table id="tabela-mercado">
+                        <thead><tr><th>Ativo</th><th>Preco</th><th>30d</th><th>6m</th><th>Risco</th><th>Leitura</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Proximos passos do investidor</h3>
+                <ul id="mercado-passos" class="decision-list"></ul>
             </div>
         </div>
 
@@ -1442,6 +1514,7 @@
             if (id === 'gastos') { loadCartoesSelect(); loadGastos(); }
             if (id === 'desejos') loadDesejos();
             if (id === 'prosperidade') loadProsperidade();
+            if (id === 'mercado') loadMercado();
             if (id === 'salvamento') loadSalvamento();
             if (id === 'config') loadConfig();
         }
@@ -1485,6 +1558,15 @@
         function fmtMoney(valor) {
             valor = Number(valor || 0);
             return 'R$ ' + valor.toFixed(2).replace('.', ',');
+        }
+
+        function escapeHtml(valor) {
+            return String(valor === undefined || valor === null ? '' : valor)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function fmtDate(data) {
@@ -1612,6 +1694,75 @@
                 gap.className = (Number(meta.gap_mensal || 0) <= 0) ? 'positive' : 'warning';
             }
             if (leitura) leitura.textContent = meta.leitura || '';
+        }
+
+        async function loadMercado() {
+            var input = document.getElementById('mercado-tickers');
+            var params = new URLSearchParams();
+            if (input && input.value.trim()) params.set('tickers', input.value.trim());
+
+            var url = '/api/mercado/analise';
+            if (params.toString()) url += '?' + params.toString();
+            var res = await api(url);
+            if (!res || !res.ok) return;
+
+            var decisao = document.getElementById('mercado-decisao');
+            var obs = document.getElementById('mercado-observacao');
+            var fase = document.getElementById('mercado-fase');
+            var perfil = document.getElementById('mercado-perfil');
+            var aporte = document.getElementById('mercado-aporte');
+            var divida = document.getElementById('mercado-divida');
+            var alerta = document.getElementById('mercado-alerta');
+
+            if (decisao) decisao.textContent = res.decisao || 'Analise indisponivel agora.';
+            if (obs) obs.textContent = res.observacao || '';
+            if (fase) fase.textContent = String(res.fase || '-').toUpperCase();
+            if (perfil) perfil.textContent = String(res.perfil || '-').toUpperCase();
+            if (aporte) aporte.textContent = fmtMoney(res.aporte_mensal_sugerido || 0);
+            if (divida) divida.textContent = fmtMoney(res.divida_total || 0);
+            if (alerta) alerta.textContent = (res.saldo_utilizacao && res.saldo_utilizacao.mensagem_curta) || 'Controle o risco antes de investir.';
+
+            var carteira = document.getElementById('mercado-carteira');
+            if (carteira) {
+                carteira.innerHTML = (res.carteira_sugerida || []).map(function(item) {
+                    return '<li><b>' + escapeHtml(item.classe) + ' - ' + Number(item.percentual || 0).toFixed(0) + '%</b><br>' +
+                        '<span style="color:var(--text-dim)">' + fmtMoney(item.valor_sugerido || 0) + '/mes - ' + escapeHtml(item.motivo) + '</span></li>';
+                }).join('');
+            }
+
+            var rendaFixa = document.getElementById('mercado-renda-fixa');
+            if (rendaFixa) {
+                rendaFixa.innerHTML = (res.bancos_e_renda_fixa || []).map(function(item) {
+                    return '<li><b>' + escapeHtml(item.nome) + '</b><br>' +
+                        '<span style="color:var(--text-dim)">' + escapeHtml(item.onde) + '. ' + escapeHtml(item.criterio) + '</span></li>';
+                }).join('');
+            }
+
+            var tbody = document.querySelector('#tabela-mercado tbody');
+            if (tbody) {
+                var ativos = res.acoes_para_estudo || [];
+                if (!ativos.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">Sem cotacoes agora. Tente novamente depois.</td></tr>';
+                } else {
+                    tbody.innerHTML = ativos.map(function(a) {
+                        return '<tr>' +
+                            '<td><b>' + escapeHtml(a.ticker) + '</b><br><small>' + escapeHtml(a.nome_curto || a.nome || '') + '</small></td>' +
+                            '<td>' + fmtMoney(a.preco || 0) + '</td>' +
+                            '<td>' + (a.retorno_30d_pct === null || a.retorno_30d_pct === undefined ? '-' : Number(a.retorno_30d_pct).toFixed(2).replace('.', ',') + '%') + '</td>' +
+                            '<td>' + (a.retorno_6m_pct === null || a.retorno_6m_pct === undefined ? '-' : Number(a.retorno_6m_pct).toFixed(2).replace('.', ',') + '%') + '</td>' +
+                            '<td>' + escapeHtml(a.risco || '-') + '</td>' +
+                            '<td>' + escapeHtml(a.leitura || '') + '</td>' +
+                        '</tr>';
+                    }).join('');
+                }
+            }
+
+            var passos = document.getElementById('mercado-passos');
+            if (passos) {
+                passos.innerHTML = (res.proximos_passos || []).map(function(p) {
+                    return '<li>' + escapeHtml(p) + '</li>';
+                }).join('');
+            }
         }
 
         // ==================== DASHBOARD ====================

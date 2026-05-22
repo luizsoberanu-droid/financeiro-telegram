@@ -207,10 +207,12 @@ def init_db():
     _ensure_schema(session)
 
     # Seed inicial se estiver vazio
-    if session.query(Config).first() is None:
+    primeira_instalacao = session.query(Config).first() is None
+
+    if primeira_instalacao:
         session.add(Config())
 
-    if session.query(ContaFixa).count() == 0:
+    if primeira_instalacao and session.query(ContaFixa).count() == 0:
         contas_seed = [
             ContaFixa(nome="casa", valor=732.92, vencimento=10, categoria="moradia"),
             ContaFixa(nome="carro", valor=1469.70, vencimento=15, categoria="financiamento"),
@@ -223,7 +225,7 @@ def init_db():
         ]
         session.add_all(contas_seed)
 
-    if session.query(Cartao).count() == 0:
+    if primeira_instalacao and session.query(Cartao).count() == 0:
         cartoes_seed = [
             Cartao(nome="samsung", vencimento=15, melhor_dia_compra=11),
             Cartao(nome="santander", vencimento=15, melhor_dia_compra=11),
@@ -234,7 +236,7 @@ def init_db():
     if session.query(CartaoAlimentacao).count() == 0:
         session.add(CartaoAlimentacao(nome="cartao alimentacao", saldo_atual=0.0, recarga_mensal=0.0, dia_recarga=1))
 
-    if session.query(Divida).count() == 0:
+    if primeira_instalacao and session.query(Divida).count() == 0:
         dividas_seed = [
             Divida(nome="negativo", valor=2999.94, ordem_prioridade=5),
             Divida(nome="ipva", valor=1161.0, ordem_prioridade=4),
@@ -244,7 +246,7 @@ def init_db():
         ]
         session.add_all(dividas_seed)
 
-    if session.query(Limite).count() == 0:
+    if primeira_instalacao and session.query(Limite).count() == 0:
         limites_seed = [
             Limite(categoria="lazer", valor=100.0),
             Limite(categoria="combustivel", valor=320.0),

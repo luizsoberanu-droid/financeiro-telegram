@@ -187,6 +187,23 @@ TOOLS = [
                 }
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_analise_investimentos",
+            "description": "Retorna uma analise completa de investimentos com fase financeira, renda fixa, bancos, acoes, ETFs, radar de mercado e proximos passos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tickers": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tickers opcionais do Yahoo Finance. Ex: ITUB4.SA, BBAS3.SA, IVVB11.SA"
+                    }
+                }
+            }
+        }
     }
 ]
 
@@ -662,6 +679,17 @@ class FinancialTools:
                 "observacao": "Nao consegui consultar mercado agora. Nao invente cotacoes; trabalhe com estrategia e peca nova tentativa depois.",
             }
 
+    def get_analise_investimentos(self, tickers: Optional[List[str]] = None):
+        try:
+            from services.investment_advisor_service import InvestmentAdvisorService
+            return InvestmentAdvisorService(self.db).analisar(tickers)
+        except Exception as e:
+            return {
+                "ok": False,
+                "erro": str(e),
+                "observacao": "Nao consegui montar a analise completa agora. Nao invente recomendacoes; peca nova tentativa depois.",
+            }
+
 # =========================
 # MOTOR DE IA
 # =========================
@@ -685,6 +713,7 @@ class AurumCapitalAI:
             "planejar_meta_patrimonial": self.tools.planejar_meta_patrimonial,
             "analisar_compra_parcelada": self.tools.analisar_compra_parcelada,
             "get_radar_mercado": self.tools.get_radar_mercado,
+            "get_analise_investimentos": self.tools.get_analise_investimentos,
         }
 
     def get_chat_history(self, chat_id: str, limit: int = 10) -> List[Dict]:
@@ -816,7 +845,11 @@ class AurumCapitalAI:
         saldo = self.tools.get_saldo_atual()
         dividas = self.tools.get_analise_dividas()
 
-        goal_terms = any(t in msg for t in ["investir", "acao", "acoes", "mercado", "etf", "dolar", "casa", "milhao", "milhoes", "prosperar", "patrimonio"])
+        goal_terms = any(t in msg for t in [
+            "investir", "onde investir", "acao", "acoes", "mercado", "etf", "dolar",
+            "banco", "bancos", "cdb", "tesouro", "renda fixa",
+            "casa", "milhao", "milhoes", "prosperar", "patrimonio",
+        ])
 
         if any(t in msg for t in ["parcel", "cartao", "comprar", "compra", "lista de desejo"]) and not goal_terms:
             valor = self._extrair_valor(user_message)
@@ -848,8 +881,8 @@ class AurumCapitalAI:
             )
 
         if goal_terms:
-            rec = self.tools.get_recomendacao_investimento()
             visao = self.tools.get_visao_patrimonial()
+            rec = self.tools.get_recomendacao_investimento()
             valor_meta = self._extrair_valor(user_message)
             prazo = self._extrair_prazo_anos(user_message)
             meta_txt = ""
@@ -862,18 +895,13 @@ class AurumCapitalAI:
                     f"Leitura: {meta['leitura']}"
                 )
 
-            radar_txt = ""
-            if any(t in msg for t in ["mercado", "acao", "acoes", "etf", "dolar"]):
-                radar = self.tools.get_radar_mercado()
-                ativos_ok = [a for a in radar.get("ativos", []) if a.get("ok")]
-                if ativos_ok:
-                    linhas = [
-                        f"- {a['ticker']}: R$ {a['preco']:.2f} | 30d {a.get('retorno_30d_pct')}% | 6m {a.get('retorno_6m_pct')}%"
-                        for a in ativos_ok[:6]
-                    ]
-                    radar_txt = "\n\nRadar de mercado para estudo:\n" + "\n".join(linhas)
-                else:
-                    radar_txt = "\n\nRadar de mercado indisponivel agora. Nao vou inventar cotacoes."
+            if any(t in msg for t in ["mercado", "acao", "acoes", "etf", "dolar", "banco", "bancos", "cdb", "tesouro", "renda fixa", "onde investir"]):
+                analise = self.tools.get_analise_investimentos()
+                if analise.get("ok"):
+                    return analise["mensagem"] + meta_txt
+                radar_txt = "\n\nRadar de mercado indisponivel agora. Nao vou inventar cotacoes."
+            else:
+                radar_txt = ""
 
             return (
                 "Aurum Capital analista patrimonial (modo fallback)\n\n"

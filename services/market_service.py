@@ -1,4 +1,5 @@
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 
 
@@ -21,9 +22,17 @@ DEFAULT_TICKERS = [
 class MarketService:
     def snapshot(self, tickers=None):
         tickers = tickers or DEFAULT_TICKERS
-        rows = []
-        for ticker in tickers[:16]:
-            rows.append(self._quote(ticker))
+        tickers = tickers[:16]
+        rows_by_ticker = {}
+        with ThreadPoolExecutor(max_workers=min(8, max(len(tickers), 1))) as executor:
+            futures = {executor.submit(self._quote, ticker): ticker for ticker in tickers}
+            for future in as_completed(futures):
+                ticker = futures[future]
+                try:
+                    rows_by_ticker[ticker] = future.result()
+                except Exception as e:
+                    rows_by_ticker[ticker] = {"ok": False, "ticker": ticker, "erro": str(e)}
+        rows = [rows_by_ticker.get(ticker, {"ok": False, "ticker": ticker, "erro": "sem resposta"}) for ticker in tickers]
 
         ok_rows = [r for r in rows if r.get("ok")]
         return {
@@ -41,7 +50,7 @@ class MarketService:
                 url,
                 params={"range": "6mo", "interval": "1d"},
                 headers={"User-Agent": "Mozilla/5.0 AurumCapitalBot/1.0"},
-                timeout=12,
+                timeout=5,
             )
             if not r.ok:
                 return {"ok": False, "ticker": ticker, "erro": f"HTTP {r.status_code}"}
