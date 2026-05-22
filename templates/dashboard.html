@@ -258,6 +258,34 @@
             color: var(--text);
             font-size: 1.05em;
         }
+        .advisor-guidance {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.04);
+        }
+        .advisor-guidance strong,
+        .advisor-guidance span {
+            display: block;
+            line-height: 1.4;
+        }
+        .advisor-guidance strong {
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+        .advisor-guidance span {
+            color: var(--text-dim);
+            font-size: 0.92em;
+        }
+        .advisor-guidance.usar_menos strong { color: var(--danger); }
+        .advisor-guidance.segurar strong { color: var(--warning); }
+        .advisor-guidance.pode_usar strong { color: var(--success); }
+        .advisor-guidance-inline {
+            margin-top: 12px;
+            color: var(--text-dim);
+            line-height: 1.45;
+        }
         .checklist {
             display: grid;
             gap: 10px;
@@ -753,7 +781,7 @@
                             <strong id="advisor-risco">-</strong>
                         </div>
                         <div class="mini-metric">
-                            <span>Limite seguro livre</span>
+                            <span>Saldo livre seguro</span>
                             <strong id="advisor-limite">R$ 0,00</strong>
                         </div>
                         <div class="mini-metric">
@@ -764,6 +792,10 @@
                             <span>Setup financeiro</span>
                             <strong id="advisor-progresso">0%</strong>
                         </div>
+                    </div>
+                    <div class="advisor-guidance" id="advisor-uso-box">
+                        <strong id="advisor-uso-saldo">Calculando uso seguro do saldo...</strong>
+                        <span id="advisor-uso-detalhe">A cada lancamento eu atualizo se voce pode usar mais ou precisa segurar.</span>
                     </div>
                     <div class="advisor-actions">
                         <button class="btn btn-primary" onclick="showSection('prosperidade')">Ver Plano de Prosperidade</button>
@@ -895,10 +927,11 @@
                             <strong id="prosperidade-aporte">R$ 0,00</strong>
                         </div>
                         <div class="mini-metric">
-                            <span>Gasto livre sugerido</span>
+                            <span>Saldo livre seguro</span>
                             <strong id="prosperidade-limite">R$ 0,00</strong>
                         </div>
                     </div>
+                    <p id="prosperidade-uso-saldo" class="advisor-guidance-inline">A cada lancamento o Aurum recalcula se voce pode usar mais ou deve usar menos.</p>
                 </div>
 
                 <div class="advisor-side">
@@ -1496,6 +1529,11 @@
             var foco = res.foco || '';
             var risco = riscoLabel(res.risco);
             var progresso = Number(res.progresso_onboarding || 0);
+            var usoSaldo = res.saldo_utilizacao || {};
+            var saldoLivreSeguro = Number(usoSaldo.pode_usar_ate);
+            if (isNaN(saldoLivreSeguro)) saldoLivreSeguro = Number(res.limite_gasto_mes || 0);
+            var usoMensagem = usoSaldo.mensagem_curta || ('Saldo livre seguro: ' + fmtMoney(saldoLivreSeguro));
+            var usoDetalhe = usoSaldo.orientacao || 'A cada lancamento o Aurum recalcula sua margem segura.';
 
             var advisorDecisao = document.getElementById('advisor-decisao');
             var advisorFoco = document.getElementById('advisor-foco');
@@ -1503,15 +1541,21 @@
             var advisorLimite = document.getElementById('advisor-limite');
             var advisorAporte = document.getElementById('advisor-aporte');
             var advisorProgresso = document.getElementById('advisor-progresso');
+            var advisorUsoBox = document.getElementById('advisor-uso-box');
+            var advisorUsoSaldo = document.getElementById('advisor-uso-saldo');
+            var advisorUsoDetalhe = document.getElementById('advisor-uso-detalhe');
             var onboardingBar = document.getElementById('onboarding-bar');
             var onboardingList = document.getElementById('onboarding-list');
 
             if (advisorDecisao) advisorDecisao.textContent = decisao;
             if (advisorFoco) advisorFoco.textContent = foco;
             if (advisorRisco) advisorRisco.textContent = risco;
-            if (advisorLimite) advisorLimite.textContent = fmtMoney(res.limite_gasto_mes || 0);
+            if (advisorLimite) advisorLimite.textContent = fmtMoney(saldoLivreSeguro);
             if (advisorAporte) advisorAporte.textContent = fmtMoney(res.aporte_mensal_sugerido || 0);
             if (advisorProgresso) advisorProgresso.textContent = progresso.toFixed(0) + '%';
+            if (advisorUsoBox) advisorUsoBox.className = 'advisor-guidance ' + (usoSaldo.status || '');
+            if (advisorUsoSaldo) advisorUsoSaldo.textContent = usoMensagem;
+            if (advisorUsoDetalhe) advisorUsoDetalhe.textContent = usoDetalhe;
             if (onboardingBar) onboardingBar.style.width = Math.min(progresso, 100) + '%';
             if (onboardingList) {
                 onboardingList.innerHTML = (res.etapas || []).map(function(e) {
@@ -1529,12 +1573,14 @@
             var pRisco = document.getElementById('prosperidade-risco');
             var pAporte = document.getElementById('prosperidade-aporte');
             var pLimite = document.getElementById('prosperidade-limite');
+            var pUsoSaldo = document.getElementById('prosperidade-uso-saldo');
             if (pDecisao) pDecisao.textContent = decisao;
             if (pDisclaimer) pDisclaimer.textContent = res.disclaimer || '';
             if (pFase) pFase.textContent = faseLabel(res.fase);
             if (pRisco) pRisco.textContent = risco;
             if (pAporte) pAporte.textContent = fmtMoney(res.aporte_mensal_sugerido || 0);
-            if (pLimite) pLimite.textContent = fmtMoney(res.limite_gasto_mes || 0);
+            if (pLimite) pLimite.textContent = fmtMoney(saldoLivreSeguro);
+            if (pUsoSaldo) pUsoSaldo.textContent = usoMensagem + ' ' + usoDetalhe;
 
             var marcos = document.getElementById('prosperidade-marcos');
             if (marcos) {

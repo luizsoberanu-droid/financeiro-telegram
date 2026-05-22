@@ -28,6 +28,15 @@ def api_status():
     finally:
         db.close()
 
+@api_bp.route('/saldo/utilizacao')
+def api_saldo_utilizacao():
+    db = get_db_session()
+    try:
+        from services.advisor_service import AdvisorService
+        return jsonify(AdvisorService(db).saldo_utilizacao())
+    finally:
+        db.close()
+
 # ==================== CONTAS FIXAS ====================
 @api_bp.route('/contas')
 def api_contas():
@@ -328,12 +337,14 @@ def api_prosperidade():
     db = get_db_session()
     try:
         from models.database import Config, ContaFixa, Cartao, Desejo, Apontamento
+        from services.advisor_service import AdvisorService
 
         tools = FinancialTools(db)
         saldo = tools.get_saldo_atual()
         dividas = tools.get_analise_dividas()
         reserva = tools.get_reserva_status()
         visao = tools.get_visao_patrimonial()
+        saldo_utilizacao = AdvisorService(db).saldo_utilizacao()
 
         valor_meta = float(request.args.get("valor_meta", 1000000) or 1000000)
         prazo_anos = float(request.args.get("prazo_anos", 10) or 10)
@@ -416,14 +427,16 @@ def api_prosperidade():
             risco = "atencao"
             decisao = "A meta exige renda maior, prazo maior ou reducao de custos antes de acelerar compras."
 
-        if divida_total > 0:
-            limite_gasto_mes = min(max(receita_total * 0.05, 0), max(saldo_final * 0.1, 0))
-        elif reserva_faltante > 0:
-            limite_gasto_mes = min(max(receita_total * 0.10, 0), max(saldo_final * 0.2, 0))
-        else:
-            limite_gasto_mes = min(max(receita_total * 0.15, 0), max(saldo_final * 0.3, 0))
+        limite_gasto_mes = float(saldo_utilizacao.get("pode_usar_ate") or 0)
+        fmt_br = lambda valor: f"R$ {float(valor or 0):.2f}".replace(".", ",")
 
         proximas_acoes = []
+        if saldo_utilizacao.get("reduzir_agora", 0) > 0:
+            proximas_acoes.append(f"Reduzir {fmt_br(saldo_utilizacao.get('reduzir_agora'))} em compras extras para voltar ao plano.")
+        elif saldo_utilizacao.get("pode_usar_ate", 0) > 0:
+            proximas_acoes.append(f"Usar no maximo {fmt_br(saldo_utilizacao.get('pode_usar_ate'))} de saldo livre ate o fechamento.")
+        else:
+            proximas_acoes.append("Manter compras extras travadas e usar dinheiro apenas para necessidade real.")
         if not saldo_ok:
             proximas_acoes.append("Calibrar o saldo real de hoje na configuracao.")
         if divida_total > 0:
@@ -468,6 +481,7 @@ def api_prosperidade():
             "progresso_onboarding": progresso,
             "etapas": etapas,
             "limite_gasto_mes": round(limite_gasto_mes, 2),
+            "saldo_utilizacao": saldo_utilizacao,
             "aporte_mensal_sugerido": round(aporte_atual, 2),
             "proximas_acoes": proximas_acoes[:4],
             "marcos": marcos,

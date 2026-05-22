@@ -255,8 +255,17 @@ def _tratar_pendencia(db, chat_id, text):
 def _tratar_limite_cartao(db, chat_id, text):
     msg = _normalizar(text)
     valor = _extrair_valor(text)
+    gatilhos_cartao = [
+        "quanto posso gastar no cartao",
+        "quanto posso usar no cartao",
+        "limite de credito",
+        "limite do cartao",
+    ]
 
-    if "limite" not in msg and "quanto posso gastar no cartao" not in msg:
+    if "saldo" in msg and "cartao" not in msg and "credito" not in msg:
+        return None
+
+    if "limite" not in msg and not any(t in msg for t in gatilhos_cartao):
         return None
 
     if valor <= 0:
@@ -310,12 +319,16 @@ def _tratar_saldo_conta(db, chat_id, text):
 
     resumo = MonthlyService(db).salvar_resumo_mes(mes_ref)
     _clear_session(chat_id)
+    from services.advisor_service import AdvisorService
+    uso_saldo = AdvisorService(db).saldo_utilizacao()
 
     return (
         "Situacao financeira calibrada no banco.\n"
         f"Saldo informado hoje: R$ {valor:.2f}\n"
         f"Movimento previsto do mes: R$ {resumo['movimento_mes']:.2f}\n"
         f"Saldo final projetado: R$ {resumo['saldo_final']:.2f}\n\n"
+        f"{uso_saldo['mensagem_curta']}\n"
+        f"{uso_saldo['orientacao']}\n\n"
         "Daqui pra frente, o fechamento do mes vira a base do mes seguinte."
     )
 
@@ -380,6 +393,30 @@ def _tratar_lancamento(db, chat_id, text):
     return _salvar_lancamento(db, chat_id, descricao, valor, forma, cartao_nome)
 
 
+def _tratar_saldo_utilizacao(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = [
+        "quanto posso usar",
+        "posso usar",
+        "quanto posso gastar",
+        "posso gastar quanto",
+        "saldo livre",
+        "saldo disponivel",
+        "uso seguro",
+        "usar a mais",
+        "usar menos",
+        "limite do saldo",
+    ]
+    if not any(t in msg for t in gatilhos):
+        return None
+
+    if any(t in msg for t in ["cartao", "credito"]) and "saldo" not in msg and "conta" not in msg:
+        return None
+
+    from services.advisor_service import AdvisorService
+    return AdvisorService(db).saldo_utilizacao()["mensagem"]
+
+
 def _tratar_checkup_analista(db, chat_id, text):
     msg = _normalizar(text)
     gatilhos = [
@@ -394,7 +431,7 @@ def _tratar_checkup_analista(db, chat_id, text):
 
 
 def tratar_integracoes(db, chat_id, text):
-    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_desejo, _tratar_lancamento, _tratar_checkup_analista]:
+    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_saldo_utilizacao, _tratar_desejo, _tratar_lancamento, _tratar_checkup_analista]:
         resposta = handler(db, chat_id, text)
         if resposta:
             return resposta
