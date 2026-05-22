@@ -82,6 +82,10 @@
 
         /* Header */
         header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+            gap: 20px 24px;
             padding: 28px;
             background: linear-gradient(135deg, rgba(21,26,32,0.96), rgba(19,25,29,0.92));
             border-radius: 8px;
@@ -100,6 +104,8 @@
         }
         .brand-lockup {
             position: relative;
+            z-index: 1;
+            grid-column: 1;
             display: flex;
             align-items: center;
             gap: 18px;
@@ -134,16 +140,18 @@
         .header-subtitle { color: var(--text-dim); margin-top: 9px; max-width: 700px; line-height: 1.45; }
         .header-version { color: #6f7b86; margin-top: 6px; font-size: 0.86em; }
         .header-actions {
-            position: absolute;
-            top: 20px;
-            right: 20px;
+            position: relative;
+            grid-column: 2;
+            align-self: start;
             display: flex;
             gap: 10px;
             z-index: 2;
             flex-wrap: wrap;
             justify-content: flex-end;
+            max-width: 360px;
         }
         .header-actions button {
+            min-width: 96px;
             background: rgba(255,255,255,0.06);
             border: 1px solid var(--border);
             color: var(--text);
@@ -160,6 +168,8 @@
         }
         .header-cta-row {
             position: relative;
+            z-index: 1;
+            grid-column: 1 / -1;
             margin-top: 22px;
             display: flex;
             gap: 10px;
@@ -167,6 +177,8 @@
         }
         .trust-strip {
             position: relative;
+            z-index: 1;
+            grid-column: 1 / -1;
             display: grid;
             grid-template-columns: repeat(4, minmax(120px, 1fr));
             gap: 1px;
@@ -456,10 +468,12 @@
 
         /* Responsive */
         @media (max-width: 768px) {
+            header { grid-template-columns: 1fr; }
             .grid { grid-template-columns: 1fr; }
             .nav-tabs { justify-content: flex-start; }
             .wishlist-item { flex-direction: column; align-items: flex-start; }
-            .header-actions { position: relative; inset: auto; margin-top: 18px; justify-content: flex-start; }
+            .header-actions { grid-column: 1; max-width: none; justify-content: flex-start; }
+            .header-actions button { min-width: 0; }
             .brand-lockup { align-items: flex-start; }
             .trust-strip { grid-template-columns: 1fr 1fr; }
             .toast { right: 10px; left: 10px; max-width: none; }
