@@ -1333,7 +1333,7 @@
             <div class="save-grid">
                 <div class="save-layer">
                     <h4>Banco do dia a dia</h4>
-                    <p>SQLite guarda tudo que voce usa no painel e no Telegram.</p>
+                    <p>Postgres no Render guarda o historico principal; SQLite fica como modo local.</p>
                 </div>
                 <div class="save-layer">
                     <h4>Espelho permanente</h4>
@@ -1348,6 +1348,7 @@
             <div class="card" style="margin-bottom:20px;">
                 <h3>Status do Cofre</h3>
                 <div id="salvamento-status" style="color:var(--text-dim);line-height:1.7;">Carregando...</div>
+                <div id="persistencia-status" style="color:var(--text-dim);line-height:1.7;margin-top:16px;"></div>
                 <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="salvarGoogleSheets()">Salvar agora no Google Sheets</button>
                     <button class="btn btn-outline" onclick="baixarSnapshot()">Baixar snapshot JSON</button>
@@ -2263,7 +2264,12 @@ async function deleteDesejo(id) {
 
         // ==================== SALVAMENTO ====================
         async function loadSalvamento() {
-            var res = await api('/api/salvamento/status');
+            var respostas = await Promise.all([
+                api('/api/salvamento/status'),
+                api('/api/persistencia/status')
+            ]);
+            var res = respostas[0];
+            var persistencia = respostas[1];
             var el = document.getElementById('salvamento-status');
             if (!res || !el) return;
             var linhas = [
@@ -2275,7 +2281,45 @@ async function deleteDesejo(id) {
                 linhas.push('<div style="margin-top:14px;color:var(--text-dim);">Tabelas: ' + Object.keys(res.tabelas).map(function(k) { return k + ' (' + res.tabelas[k] + ')'; }).join(', ') + '</div>');
             }
             el.innerHTML = linhas.join('');
+            renderPersistencia(persistencia);
             await loadApontamentos();
+        }
+
+        function renderPersistencia(res) {
+            var el = document.getElementById('persistencia-status');
+            if (!el) return;
+            if (!res) {
+                el.innerHTML = '<div class="suggestion-box">Nao consegui ler o status da persistencia agora.</div>';
+                return;
+            }
+            var banco = res.banco || {};
+            var google = res.google_sheets || {};
+            var render = res.render || {};
+            var historico = res.historico || {};
+            var ultimo = res.ultimo_resumo_mensal || {};
+            var mesesHistorico = historico.resumos_mensais || 0;
+            var linhas = [
+                '<div class="metric-line"><span>Nivel de protecao</span><strong>' + escapeHtml(String(res.nivel || '-').toUpperCase()) + '</strong></div>',
+                '<div class="metric-line"><span>Banco ativo</span><strong>' + escapeHtml(banco.driver || banco.backend || '-') + '</strong></div>',
+                '<div class="metric-line"><span>Persistencia</span><strong>' + (banco.is_persistent ? 'PERSISTENTE' : 'ATENCAO') + '</strong></div>',
+                '<div class="metric-line"><span>Google Sheets</span><strong>' + (google.configurado ? 'CONFIGURADO' : 'PENDENTE') + '</strong></div>',
+                '<div class="metric-line"><span>Historico mensal</span><strong>' + mesesHistorico + ' ' + (mesesHistorico === 1 ? 'mes' : 'meses') + '</strong></div>',
+                '<div class="metric-line"><span>Conversas da IA salvas</span><strong>' + (historico.conversas_ia || 0) + '</strong></div>',
+                '<div class="metric-line"><span>Cron interno Render</span><strong>' + (render.cron_interno ? 'LIGADO' : 'DESLIGADO') + '</strong></div>',
+                '<div class="metric-line"><span>Pool do banco</span><strong>' + escapeHtml((render.db_pool_size || '2') + '/' + (render.db_max_overflow || '2')) + '</strong></div>',
+                '<div class="suggestion-box">' + escapeHtml(res.leitura || banco.recommendation || '') + '</div>'
+            ];
+            if (ultimo && ultimo.mes_ref) {
+                linhas.push('<div class="metric-line"><span>Ultimo mes fechado</span><strong>' + escapeHtml(ultimo.mes_ref) + ' - ' + fmtMoney(ultimo.saldo_final || 0) + '</strong></div>');
+            }
+            if (res.acoes_recomendadas && res.acoes_recomendadas.length) {
+                linhas.push('<div style="margin-top:12px;"><strong style="color:var(--text);">Proximas acoes</strong><ul style="margin:8px 0 0 18px;">' +
+                    res.acoes_recomendadas.map(function(acao) {
+                        return '<li>' + escapeHtml(acao) + '</li>';
+                    }).join('') +
+                    '</ul></div>');
+            }
+            el.innerHTML = linhas.join('');
         }
 
         async function loadApontamentos() {

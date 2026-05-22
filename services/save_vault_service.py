@@ -60,11 +60,12 @@ class SaveVaultService:
             "total_registros": total,
             "tabelas": tables,
             "estrategia": [
-                "SQLite guarda o uso diario.",
+                "Postgres persistente deve guardar o uso real no Render.",
+                "SQLite fica como modo local/teste.",
                 "Google Sheets funciona como espelho permanente.",
                 "Snapshot JSON permite baixar uma copia portatil quando quiser.",
             ],
-            "sugestao": "Use Salvar agora no Google Sheets apos mudancas importantes e baixe um snapshot JSON pelo menos uma vez por mes.",
+            "sugestao": "Use DATABASE_URL com Postgres no Render, salve no Google Sheets apos mudancas importantes e baixe um snapshot JSON pelo menos uma vez por mes.",
             "checked_at": datetime.utcnow().isoformat(),
         }
 

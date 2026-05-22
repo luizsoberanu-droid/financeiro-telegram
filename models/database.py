@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -196,9 +197,86 @@ class Alerta(Base):
 # ENGINE E SESSION
 # =========================
 
-DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("AURUM_DATABASE_URL", "sqlite:///aurum.db"))
-engine = create_engine(DATABASE_URL, echo=False)
+def _normalizar_database_url(raw_url):
+    url = (raw_url or "").strip() or "sqlite:///aurum.db"
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+def _int_env(name, default):
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _engine_kwargs(url):
+    kwargs = {"echo": False, "pool_pre_ping": True}
+    if url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+    else:
+        kwargs["pool_size"] = _int_env("DB_POOL_SIZE", 2)
+        kwargs["max_overflow"] = _int_env("DB_MAX_OVERFLOW", 2)
+        kwargs["pool_recycle"] = _int_env("DB_POOL_RECYCLE", 1800)
+    return kwargs
+
+
+RAW_DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("AURUM_DATABASE_URL", "sqlite:///aurum.db"))
+DATABASE_URL = _normalizar_database_url(RAW_DATABASE_URL)
+engine = create_engine(DATABASE_URL, **_engine_kwargs(DATABASE_URL))
 SessionLocal = sessionmaker(bind=engine)
+
+
+def database_info():
+    try:
+        url = make_url(DATABASE_URL)
+        backend = url.get_backend_name()
+        driver = url.drivername
+        masked_url = url.render_as_string(hide_password=True)
+        database_name = url.database
+    except Exception:
+        backend = "desconhecido"
+        driver = "desconhecido"
+        masked_url = "invalido"
+        database_name = None
+
+    configured_url = bool(os.getenv("DATABASE_URL") or os.getenv("AURUM_DATABASE_URL"))
+    using_sqlite = backend == "sqlite"
+    using_render = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+    is_persistent = not using_sqlite and backend != "desconhecido"
+    sqlite_path = os.path.abspath(database_name) if using_sqlite and database_name not in (None, "", ":memory:") else database_name
+
+    if is_persistent:
+        permanence = "persistente"
+        recommendation = "Banco persistente ativo. O historico da IA, desejos, lancamentos e resumos mensais sobrevivem a reinicios do Render."
+    elif using_render:
+        permanence = "temporario_no_render"
+        recommendation = "Configure DATABASE_URL com um Postgres persistente no Render para o app nao depender do disco temporario."
+    else:
+        permanence = "local"
+        recommendation = "Ambiente local usando SQLite. Para producao no Render, use DATABASE_URL com Postgres."
+
+    return {
+        "driver": driver,
+        "backend": backend,
+        "url_masked": masked_url,
+        "database_url_configured": configured_url,
+        "using_sqlite": using_sqlite,
+        "sqlite_path": sqlite_path,
+        "using_render": using_render,
+        "is_persistent": is_persistent,
+        "permanence": permanence,
+        "recommendation": recommendation,
+        "pool_size": _int_env("DB_POOL_SIZE", 2) if not using_sqlite else None,
+        "max_overflow": _int_env("DB_MAX_OVERFLOW", 2) if not using_sqlite else None,
+    }
+
+
+def _datetime_sql_type():
+    if engine.dialect.name in ["postgresql", "postgres"]:
+        return "TIMESTAMP"
+    return "DATETIME"
 
 def init_db():
     Base.metadata.create_all(engine, checkfirst=True)
@@ -261,6 +339,7 @@ def init_db():
 def _ensure_schema(session):
     inspector = inspect(engine)
     tabelas = inspector.get_table_names()
+    datetime_type = _datetime_sql_type()
 
     if "cartoes" in tabelas:
         colunas_cartoes = {c["name"] for c in inspector.get_columns("cartoes")}
@@ -277,7 +356,7 @@ def _ensure_schema(session):
             session.execute(text("ALTER TABLE config ADD COLUMN saldo_conta_mes_ref VARCHAR"))
             session.commit()
         if "saldo_conta_updated_at" not in colunas_config:
-            session.execute(text("ALTER TABLE config ADD COLUMN saldo_conta_updated_at DATETIME"))
+            session.execute(text(f"ALTER TABLE config ADD COLUMN saldo_conta_updated_at {datetime_type}"))
             session.commit()
 
     if "resumo_mensal" in tabelas:
@@ -302,7 +381,7 @@ def _ensure_schema(session):
             ("preco_maximo", "FLOAT DEFAULT 0"),
             ("preco_qtd", "INTEGER DEFAULT 0"),
             ("preco_exemplo", "TEXT"),
-            ("preco_atualizado_em", "DATETIME"),
+            ("preco_atualizado_em", datetime_type),
         ]
         for nome, tipo in colunas_novas:
             if nome not in colunas_desejos:

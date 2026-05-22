@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.11-slim
 
 # Variáveis de ambiente
-ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PYTHONFAULTHANDLER=1     PYTHONMALLOC=malloc     MALLOC_ARENA_MAX=2     PATH=/root/.local/bin:$PATH     PORT=5000     WEB_CONCURRENCY=1     GUNICORN_THREADS=2
+ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PYTHONFAULTHANDLER=1     PYTHONMALLOC=malloc     MALLOC_ARENA_MAX=2     PATH=/root/.local/bin:$PATH     PORT=5000     WEB_CONCURRENCY=1     GUNICORN_THREADS=2     DB_POOL_SIZE=2     DB_MAX_OVERFLOW=2     DB_POOL_RECYCLE=1800
 
 # Instalar dependências de runtime mínimas
 RUN apt-get update && apt-get install -y --no-install-recommends     libpq5     curl     && rm -rf /var/lib/apt/lists/*

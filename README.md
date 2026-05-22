@@ -223,7 +223,8 @@ Novidades desta melhoria:
 - Registro de uso, recarga e ajuste do cartao alimentacao sem baguncar o saldo em dinheiro.
 - No Telegram conversacional, pergunte sobre saldo do cartao alimentacao ou salvamento para a IA consultar e orientar.
 - Aba `Cofre` no painel com tres camadas:
-  - SQLite para uso diario.
+  - Postgres persistente no Render para uso real em producao.
+  - SQLite para uso local/teste.
   - Google Sheets como espelho permanente.
   - Snapshot JSON portatil para guardar fora do app.
 - Autosave de apontamentos: cada operacao importante `POST/PUT/DELETE` vira um registro na tabela `apontamentos`, com origem, entidade, resumo e data.
@@ -235,6 +236,7 @@ Novos endpoints:
 - `POST /api/alimentacao/config`
 - `POST /api/alimentacao/movimento`
 - `GET /api/salvamento/status`
+- `GET /api/persistencia/status`
 - `GET /api/apontamentos`
 - `POST /api/salvamento/google_sheets`
 - `POST /api/salvamento/restaurar_google_sheets`
@@ -293,3 +295,33 @@ Configuracao recomendada no Render Free:
 - Manter `AURUM_ENABLE_INTERNAL_CRON=false`.
 - Usar UptimeRobot/cron externo para chamar `/api/analista/checkup?enviar_telegram=true`.
 - Manter backup automatico por mutacao desligado e usar `Salvar agora no Google Sheets` apos mudancas importantes.
+
+## Render com banco persistente
+
+Para a IA lembrar do historico mensal, conversas, desejos, limites e lancamentos mesmo se o Render reiniciar, configure um banco persistente:
+
+1. Crie um banco PostgreSQL no Render.
+2. Copie a Internal Database URL do banco.
+3. No Web Service do Aurum Capital, adicione a variavel:
+   - `DATABASE_URL=postgresql://...`
+4. Opcionalmente mantenha o pool pequeno para economizar memoria:
+   - `DB_POOL_SIZE=2`
+   - `DB_MAX_OVERFLOW=2`
+   - `DB_POOL_RECYCLE=1800`
+5. Refaca o deploy.
+
+Depois do deploy, abra `Cofre` no painel. O bloco `Persistencia` deve aparecer como `PERSISTENTE`.
+
+Configuracao recomendada de seguranca de dados:
+- `DATABASE_URL`: fonte principal do historico vitalicio.
+- `GOOGLE_SHEETS_ID` e `GOOGLE_SERVICE_ACCOUNT_JSON`: espelho externo para backup/restauracao.
+- `GOOGLE_SHEETS_RESTORE_ON_START=true`: restaura automaticamente se o banco parecer novo.
+- `GOOGLE_SHEETS_BACKUP_EVERY_MUTATION=false`: economiza memoria no Render; use backup manual ou cron externo.
+- `AURUM_ENABLE_INTERNAL_CRON=false`: evita consumo extra no web worker.
+- `TELEGRAM_AUTOMATIONS_ENABLED=true`: permite check-ups, alertas e revisoes automaticas quando um cron externo chama os endpoints.
+
+Endpoints uteis para monitoramento externo:
+- `GET /api/ping`
+- `GET /api/persistencia/status`
+- `GET /api/analista/checkup?enviar_telegram=true`
+- `POST /api/salvamento/google_sheets`

@@ -819,6 +819,15 @@ def api_salvamento_status():
     finally:
         db.close()
 
+@api_bp.route('/persistencia/status')
+def api_persistencia_status():
+    db = get_db_session()
+    try:
+        from services.persistence_service import PersistenceService
+        return jsonify(PersistenceService(db).status())
+    finally:
+        db.close()
+
 @api_bp.route('/apontamentos')
 def api_apontamentos():
     db = get_db_session()
