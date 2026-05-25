@@ -342,3 +342,15 @@ Novidades:
 - Endpoint `/api/analista/fechamento_mensal` para fechamento mensal com comparativo.
 - Endpoint `/api/desejos/radar` para oportunidades da lista de desejos.
 - A IA ganhou ferramentas internas para fechamento mensal, radar de desejos e decisao de compra.
+
+## Aurum Capital v10 - Plano de Conquista
+
+Novidades:
+- A IA agora monta um plano detalhado para metas grandes, como `quero comprar uma casa de R$ 600000 em 10 anos`.
+- O plano separa o dinheiro em ordem: recompor saldo, quitar dividas, reserva de emergencia, roupas/necessidades, veiculo/manutencao, entrada/documentos e so depois casa.
+- A resposta mostra o valor exato da fundacao financeira, entrada + documentos, total antes de assumir a casa, aporte mensal necessario, gap mensal e parcela habitacional segura hoje.
+- O painel `Plano de Prosperidade` ganhou o bloco `Plano de Conquista`, com escada de prioridade, plano mensal e caminhos possiveis: financiamento, carta de credito/consorcio ou compra a vista.
+- O Telegram usa esse plano quando voce pergunta por casa, patrimonio, milhao ou meta grande.
+
+Endpoint:
+- `GET /api/metas/conquista?valor_meta=600000&prazo_anos=10`

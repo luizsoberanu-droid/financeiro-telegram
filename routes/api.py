@@ -362,6 +362,13 @@ def api_prosperidade():
         prazo_anos = float(request.args.get("prazo_anos", 10) or 10)
         retorno = float(request.args.get("retorno_anual_pct", 6) or 6)
         meta = tools.planejar_meta_patrimonial(valor_meta, prazo_anos, retorno)
+        from services.goal_planner_service import GoalPlannerService
+        conquista = GoalPlannerService(db).plano_conquista(
+            valor_meta=valor_meta,
+            prazo_anos=prazo_anos,
+            retorno_anual_pct=retorno,
+            tipo=request.args.get("tipo_meta", "casa"),
+        )
 
         config = db.query(Config).first()
         mes_ref = datetime.now().strftime("%Y-%m")
@@ -498,12 +505,38 @@ def api_prosperidade():
             "proximas_acoes": proximas_acoes[:4],
             "marcos": marcos,
             "meta": meta,
+            "conquista": conquista,
             "disclaimer": "Analise educativa e de controle de risco. Nao e promessa de retorno nem recomendacao individual definitiva de investimento."
         })
     finally:
         db.close()
 
 # ==================== CONFIGURAÇÕES ====================
+@api_bp.route('/metas/conquista', methods=['GET', 'POST'])
+def api_metas_conquista():
+    db = get_db_session()
+    try:
+        from services.goal_planner_service import GoalPlannerService
+
+        p = request.get_json(silent=True) or {}
+        valor_meta = p.get("valor_meta") or request.args.get("valor_meta") or request.args.get("valor") or 600000
+        prazo_anos = p.get("prazo_anos") or request.args.get("prazo_anos") or 10
+        retorno = p.get("retorno_anual_pct") or request.args.get("retorno_anual_pct") or 6
+        entrada_pct = p.get("entrada_pct") or request.args.get("entrada_pct") or 20
+        documentacao_pct = p.get("documentacao_pct") or request.args.get("documentacao_pct") or 5
+        tipo = p.get("tipo") or request.args.get("tipo") or "casa"
+
+        return jsonify(GoalPlannerService(db).plano_conquista(
+            valor_meta=valor_meta,
+            prazo_anos=prazo_anos,
+            retorno_anual_pct=retorno,
+            entrada_pct=entrada_pct,
+            documentacao_pct=documentacao_pct,
+            tipo=tipo,
+        ))
+    finally:
+        db.close()
+
 @api_bp.route('/config', methods=['POST'])
 def api_config():
     db = get_db_session()

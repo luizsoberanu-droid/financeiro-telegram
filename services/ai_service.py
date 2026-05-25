@@ -204,6 +204,25 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "planejar_conquista",
+            "description": "Monta um plano detalhado para uma conquista grande, separando emergencia, roupas/necessidades, veiculo, entrada/documentos, carta de credito, financiamento e compra a vista.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "valor_meta": {"type": "number", "description": "Valor do objetivo em reais. Ex: casa de 600000"},
+                    "prazo_anos": {"type": "number", "description": "Prazo desejado em anos"},
+                    "tipo": {"type": "string", "description": "Tipo do objetivo, por exemplo casa, apartamento, terreno"},
+                    "retorno_anual_pct": {"type": "number", "description": "Retorno anual estimado para simulacao, use 6 se nao informado"},
+                    "entrada_pct": {"type": "number", "description": "Percentual de entrada recomendado, use 20 se nao informado"},
+                    "documentacao_pct": {"type": "number", "description": "Percentual estimado para documentacao/custos, use 5 se nao informado"}
+                },
+                "required": ["valor_meta"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "decidir_compra",
             "description": "Central de decisao: decide se um produto pode ser comprado agora, a vista, parcelado ou se deve esperar. Pode salvar na lista de desejos.",
             "parameters": {
@@ -283,7 +302,7 @@ SYSTEM_PROMPT = """Voce e o Aurum Capital, analista patrimonial e estrategista f
 11. Quando o assunto for mercado, comida, almoco ou refeicao, considere tambem o saldo do cartao alimentacao.
 12. Para investimentos, explique risco, prazo, diversificacao e liquidez. NUNCA prometa retorno garantido.
 13. Quando falar de acoes, fundos ou ETFs, use o radar de mercado quando possivel e trate como lista de estudo, nao ordem de compra.
-14. Para metas grandes, como casa de R$ 1.000.000, transforme sonho em plano: entrada, prazo, aporte mensal, renda necessaria e cortes.
+14. Para metas grandes, como casa de R$ 1.000.000, transforme sonho em plano: primeiro emergencia, roupas/necessidades, veiculo e estabilidade; depois entrada, documentos, carta de credito/consorcio, financiamento ou compra a vista.
 15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar.
 16. Quando o assunto for cartao de credito, consulte limite real, limite seguro mensal e uso atual antes de liberar gasto.
 17. Para itens da lista de desejos sem preco informado, nao chute: use busca real de preco/mercado quando a ferramenta estiver disponivel e cite a fonte.
@@ -644,6 +663,25 @@ class FinancialTools:
             "observacao": "Simulacao nao garante retorno. Use como mapa de disciplina, nao promessa.",
         }
 
+    def planejar_conquista(
+        self,
+        valor_meta: float,
+        prazo_anos: float = 10,
+        tipo: str = "casa",
+        retorno_anual_pct: float = 6,
+        entrada_pct: float = 20,
+        documentacao_pct: float = 5,
+    ):
+        from services.goal_planner_service import GoalPlannerService
+        return GoalPlannerService(self.db).plano_conquista(
+            valor_meta=valor_meta,
+            prazo_anos=prazo_anos,
+            retorno_anual_pct=retorno_anual_pct,
+            entrada_pct=entrada_pct,
+            documentacao_pct=documentacao_pct,
+            tipo=tipo or "casa",
+        )
+
     def analisar_compra_parcelada(self, produto: str, valor: float, parcelas: int = 1):
         from models.database import Desejo, Lancamento, Parcela
         from services.wishlist_advisor_service import classificar_prioridade, explicar_prioridade
@@ -769,6 +807,7 @@ class AurumCapitalAI:
             "get_limites_cartao": self.tools.get_limites_cartao,
             "get_visao_patrimonial": self.tools.get_visao_patrimonial,
             "planejar_meta_patrimonial": self.tools.planejar_meta_patrimonial,
+            "planejar_conquista": self.tools.planejar_conquista,
             "analisar_compra_parcelada": self.tools.analisar_compra_parcelada,
             "decidir_compra": self.tools.decidir_compra,
             "get_fechamento_mensal": self.tools.get_fechamento_mensal,
@@ -949,13 +988,8 @@ class AurumCapitalAI:
             prazo = self._extrair_prazo_anos(user_message)
             meta_txt = ""
             if valor_meta > 0 and any(t in msg for t in ["casa", "milhao", "milhoes", "meta", "patrimonio"]):
-                meta = self.tools.planejar_meta_patrimonial(valor_meta, prazo)
-                meta_txt = (
-                    f"\n\nMeta simulada: R$ {meta['valor_meta']:.2f} em {meta['prazo_anos']} anos\n"
-                    f"Aporte necessario: R$ {meta['aporte_mensal_necessario']:.2f}/mes\n"
-                    f"Aporte sugerido pelo orcamento: R$ {meta['aporte_mensal_sugerido_pelo_orcamento']:.2f}/mes\n"
-                    f"Leitura: {meta['leitura']}"
-                )
+                conquista = self.tools.planejar_conquista(valor_meta, prazo, "casa")
+                meta_txt = "\n\n" + conquista["mensagem"]
 
             if any(t in msg for t in ["mercado", "acao", "acoes", "etf", "dolar", "banco", "bancos", "cdb", "tesouro", "renda fixa", "onde investir"]):
                 analise = self.tools.get_analise_investimentos()

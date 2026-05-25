@@ -499,29 +499,12 @@ def _tratar_meta_patrimonial(db, chat_id, text):
     prazo_match = re.search(r"(\d+)\s+anos?", msg)
     prazo_anos = int(prazo_match.group(1)) if prazo_match else 10
 
-    from services.ai_service import FinancialTools
-    tools = FinancialTools(db)
-    meta = tools.planejar_meta_patrimonial(valor_meta, prazo_anos)
-    visao = tools.get_visao_patrimonial()
-
-    linhas = [
-        "Aurum Capital - plano de meta patrimonial",
-        "",
-        f"Meta: R$ {meta['valor_meta']:.2f} em {meta['prazo_anos']} anos",
-        f"Aporte necessario: R$ {meta['aporte_mensal_necessario']:.2f}/mes",
-        f"Aporte possivel pelo orcamento atual: R$ {meta['aporte_mensal_sugerido_pelo_orcamento']:.2f}/mes",
-        f"Gap mensal: R$ {meta['gap_mensal']:.2f}",
-        f"Leitura: {meta['leitura']}",
-        "",
-        f"Fase atual: {visao.get('fase')} | {visao.get('foco')}",
-        "",
-        "Caminho pratico:",
-        "- Fechar saldo positivo todo mes.",
-        "- Quitar dividas antes de acelerar risco.",
-        "- Montar reserva e depois investir com diversificacao.",
-        "- Se o gap for alto, atacar renda extra e prazo antes de desejos caros.",
-    ]
-    return "\n".join(linhas)
+    from services.goal_planner_service import GoalPlannerService
+    return GoalPlannerService(db).plano_conquista(
+        valor_meta=valor_meta,
+        prazo_anos=prazo_anos,
+        tipo="casa",
+    )["mensagem"]
 
 
 def _tratar_fechamento_mensal(db, chat_id, text):

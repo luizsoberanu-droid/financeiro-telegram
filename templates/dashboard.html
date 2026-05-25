@@ -974,6 +974,32 @@
                     <div class="suggestion-box" id="meta-leitura">Simule uma meta para ver o caminho.</div>
                 </div>
             </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3>Plano de Conquista</h3>
+                <div class="metric-line"><span>Fundacao financeira</span><strong id="conquista-fundacao">R$ 0,00</strong></div>
+                <div class="metric-line"><span>Entrada + documentos</span><strong id="conquista-entrada">R$ 0,00</strong></div>
+                <div class="metric-line"><span>Total antes de assumir a casa</span><strong id="conquista-total">R$ 0,00</strong></div>
+                <div class="metric-line"><span>Aporte necessario</span><strong id="conquista-aporte">R$ 0,00</strong></div>
+                <div class="metric-line"><span>Gap mensal</span><strong id="conquista-gap">R$ 0,00</strong></div>
+                <div class="suggestion-box" id="conquista-leitura">Informe uma meta para eu separar emergencia, roupas, veiculo, entrada e caminho de compra.</div>
+            </div>
+
+            <div class="two-cols" style="margin-top:20px;">
+                <div class="card">
+                    <h3>Escada de prioridade</h3>
+                    <ul id="conquista-etapas" class="decision-list"></ul>
+                </div>
+                <div class="card">
+                    <h3>Plano mensal agora</h3>
+                    <ul id="conquista-plano" class="decision-list"></ul>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:20px;">
+                <h3>Caminhos possiveis</h3>
+                <div id="conquista-cenarios" class="plan-band"></div>
+            </div>
         </div>
 
         <!-- SECTION: MERCADO E INVESTIMENTOS -->
@@ -1727,6 +1753,56 @@
                 gap.className = (Number(meta.gap_mensal || 0) <= 0) ? 'positive' : 'warning';
             }
             if (leitura) leitura.textContent = meta.leitura || '';
+
+            var conquista = res.conquista || {};
+            var cFundacao = document.getElementById('conquista-fundacao');
+            var cEntrada = document.getElementById('conquista-entrada');
+            var cTotal = document.getElementById('conquista-total');
+            var cAporte = document.getElementById('conquista-aporte');
+            var cGap = document.getElementById('conquista-gap');
+            var cLeitura = document.getElementById('conquista-leitura');
+            if (cFundacao) cFundacao.textContent = fmtMoney(conquista.fundacao_total || 0);
+            if (cEntrada) cEntrada.textContent = fmtMoney(conquista.alvo_entrada_documentos || 0);
+            if (cTotal) cTotal.textContent = fmtMoney(conquista.alvo_primeira_conquista || 0);
+            if (cAporte) cAporte.textContent = fmtMoney(conquista.aporte_mensal_necessario || 0);
+            if (cGap) {
+                cGap.textContent = fmtMoney(conquista.gap_mensal || 0);
+                cGap.className = (Number(conquista.gap_mensal || 0) <= 0) ? 'positive' : 'warning';
+            }
+            if (cLeitura) cLeitura.textContent = conquista.leitura || '';
+
+            var cEtapas = document.getElementById('conquista-etapas');
+            if (cEtapas) {
+                cEtapas.innerHTML = (conquista.etapas || []).map(function(e) {
+                    return '<li><b>' + escapeHtml((e.ordem || '-') + '. ' + (e.nome || '-')) + '</b><br>' +
+                        '<span style="color:var(--text-dim)">Falta: ' + fmtMoney(e.falta || 0) + ' - ' + escapeHtml(e.motivo || '') + '</span></li>';
+                }).join('');
+            }
+
+            var cPlano = document.getElementById('conquista-plano');
+            if (cPlano) {
+                cPlano.innerHTML = (conquista.plano_mensal || []).map(function(p) {
+                    return '<li><b>' + escapeHtml(p.destino || '-') + ': ' + fmtMoney(p.valor || 0) + '/mes</b><br>' +
+                        '<span style="color:var(--text-dim)">' + escapeHtml(p.motivo || '') + '</span></li>';
+                }).join('');
+            }
+
+            var cCenarios = document.getElementById('conquista-cenarios');
+            if (cCenarios) {
+                var cen = conquista.cenarios || {};
+                var itensCenarios = [
+                    ['Entrada/financiamento', cen.entrada_financiamento],
+                    ['Carta de credito', cen.carta_credito],
+                    ['Compra a vista', cen.compra_a_vista]
+                ];
+                cCenarios.innerHTML = itensCenarios.map(function(item) {
+                    var c = item[1] || {};
+                    var valor = c.alvo || c.alvo_total_antes_da_contemplacao || c.alvo_lance_recomendado || 0;
+                    return '<div class="plan-step"><h4>' + escapeHtml(item[0]) + '</h4>' +
+                        '<strong>' + fmtMoney(valor || 0) + '</strong>' +
+                        '<p>' + escapeHtml(c.leitura || '') + '</p></div>';
+                }).join('');
+            }
         }
 
         async function loadMercado() {
