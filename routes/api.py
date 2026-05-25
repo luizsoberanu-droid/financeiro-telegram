@@ -760,12 +760,23 @@ def api_decisao_compra():
         valor = p.get("valor", request.args.get("valor"))
         parcelas = p.get("parcelas", request.args.get("parcelas", 1))
         salvar = p.get("salvar_desejo", request.args.get("salvar_desejo", "false"))
+        urgencia = p.get("urgencia") or request.args.get("urgencia")
+        prazo_compra_meses = p.get("prazo_compra_meses") or p.get("prazo_meses") or request.args.get("prazo_compra_meses") or request.args.get("prazo_meses")
+        motivo_urgencia = p.get("motivo_urgencia") or request.args.get("motivo_urgencia")
         salvar = str(salvar).lower() in ["true", "1", "sim", "yes"]
 
         if not produto:
             return jsonify({"ok": False, "erro": "produto_obrigatorio"}), 400
 
-        result = AdvisorService(db).decisao_compra(produto, valor, parcelas, salvar)
+        result = AdvisorService(db).decisao_compra(
+            produto,
+            valor,
+            parcelas,
+            salvar,
+            urgencia=urgencia,
+            prazo_compra_meses=prazo_compra_meses,
+            motivo_urgencia=motivo_urgencia,
+        )
         return jsonify(result)
     finally:
         db.close()
@@ -779,8 +790,9 @@ def api_list_desejos():
     try:
         from models.database import Desejo
         rank = {"alta": 1, "media": 2, "média": 2, "baixa": 3}
+        urg_rank = {"critica": 0, "alta": 1, "media": 2, "normal": 3, "baixa": 4}
         desejos = db.query(Desejo).all()
-        desejos.sort(key=lambda d: (rank.get((d.prioridade or "media").lower(), 2), d.valor or 0, d.created_at or datetime.max))
+        desejos.sort(key=lambda d: (urg_rank.get((d.urgencia or "normal").lower(), 3), rank.get((d.prioridade or "media").lower(), 2), d.valor or 0, d.created_at or datetime.max))
         return jsonify([{
             "id": d.id,
             "nome": d.nome,
@@ -795,6 +807,14 @@ def api_list_desejos():
             "preco_exemplo": d.preco_exemplo,
             "preco_atualizado_em": d.preco_atualizado_em.isoformat() if d.preco_atualizado_em else "",
             "prioridade": d.prioridade or "media",
+            "urgencia": d.urgencia or "normal",
+            "motivo_urgencia": d.motivo_urgencia or "",
+            "prazo_compra_meses": int(d.prazo_compra_meses or 0),
+            "data_alvo_compra": d.data_alvo_compra.isoformat() if d.data_alvo_compra else "",
+            "forma_pagamento_planejada": d.forma_pagamento_planejada or "",
+            "parcelas_planejadas": int(d.parcelas_planejadas or 0),
+            "valor_parcela_planejada": round(d.valor_parcela_planejada or 0, 2),
+            "plano_acao": d.plano_acao or "",
             "categoria": d.prioridade or "media",
             "comprado": bool(d.comprado),
             "created_at": d.created_at.isoformat() if d.created_at else ""
@@ -812,7 +832,21 @@ def api_add_desejo():
 
         valor = p.get("valor", p.get("preco", None))
         prioridade = p.get("prioridade", p.get("categoria", "media"))
+        urgencia = str(p.get("urgencia") or "normal").lower()
+        motivo_urgencia = p.get("motivo_urgencia")
+        prazo_compra_meses = int(p.get("prazo_compra_meses") or p.get("prazo_meses") or (2 if urgencia in ["alta", "critica", "urgente"] else 0) or 0)
+        parcelas_planejadas = int(p.get("parcelas_planejadas") or p.get("parcelas") or 0)
         preco_info = None
+
+        prioridade = str(prioridade or "media").lower()
+        prioridade = {"3": "alta", "2": "media", "1": "baixa", "urgente": "alta"}.get(prioridade, prioridade)
+        if prioridade not in ["alta", "media", "baixa"]:
+            prioridade = "media"
+        urgencia = {"urgente": "alta", "crítica": "critica"}.get(urgencia, urgencia)
+        if urgencia not in ["critica", "alta", "media", "normal", "baixa"]:
+            urgencia = "normal"
+        if urgencia in ["critica", "alta"] and prioridade != "alta":
+            prioridade = "alta"
 
         if valor in [None, "", 0, "0"]:
             preco_info = buscar_preco_mercado_livre(p["nome"])
@@ -828,7 +862,11 @@ def api_add_desejo():
         desejo = Desejo(
             nome=p["nome"],
             valor=float(valor),
-            prioridade=str(prioridade)
+            prioridade=str(prioridade),
+            urgencia=urgencia,
+            motivo_urgencia=motivo_urgencia,
+            prazo_compra_meses=prazo_compra_meses,
+            parcelas_planejadas=parcelas_planejadas,
         )
 
         db.add(desejo)
@@ -836,12 +874,21 @@ def api_add_desejo():
         if preco_info:
             WishlistAdvisorService(db).registrar_preco_desejo(desejo, preco_info)
             db.commit()
+        plano = WishlistAdvisorService(db).plano_acao_desejo(
+            desejo,
+            prazo_meses=prazo_compra_meses,
+            urgencia=urgencia,
+            parcelas=parcelas_planejadas,
+            motivo_urgencia=motivo_urgencia,
+            salvar=True,
+        )
 
         return jsonify({
             "ok": True,
             "id": desejo.id,
             "valor": round(desejo.valor or 0, 2),
             "preco_info": preco_info,
+            "plano_acao": plano,
             "mensagem": "Item salvo com media real de preco." if preco_info else "Item salvo com valor informado."
         })
 
@@ -898,6 +945,54 @@ def api_salvamento_status():
     try:
         from services.save_vault_service import SaveVaultService
         return jsonify(SaveVaultService(db).status())
+    finally:
+        db.close()
+
+
+@api_bp.route('/desejos/plano_compra', methods=['GET', 'POST'])
+def api_plano_compra_desejo():
+    db = get_db_session()
+    try:
+        from models.database import Desejo
+        from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
+
+        p = request.get_json(silent=True) or {}
+        desejo_id = p.get("id") or request.args.get("id")
+        nome = p.get("nome") or p.get("produto") or request.args.get("nome") or request.args.get("produto")
+        valor = p.get("valor") or request.args.get("valor")
+        urgencia = p.get("urgencia") or request.args.get("urgencia") or "normal"
+        motivo_urgencia = p.get("motivo_urgencia") or request.args.get("motivo_urgencia")
+        prazo_meses = p.get("prazo_compra_meses") or p.get("prazo_meses") or request.args.get("prazo_compra_meses") or request.args.get("prazo_meses") or 2
+        parcelas = p.get("parcelas") or p.get("parcelas_planejadas") or request.args.get("parcelas") or request.args.get("parcelas_planejadas") or 0
+        salvar = str(p.get("salvar", request.args.get("salvar", "true"))).lower() in ["true", "1", "sim", "yes"]
+
+        desejo = None
+        if desejo_id:
+            desejo = db.query(Desejo).filter(Desejo.id == int(desejo_id)).first()
+            if not desejo:
+                return jsonify({"ok": False, "erro": "desejo_nao_encontrado"}), 404
+        elif nome:
+            desejo = db.query(Desejo).filter(Desejo.nome.ilike(nome)).first()
+            if not desejo:
+                if not valor:
+                    return jsonify({"ok": False, "erro": "valor_obrigatorio_para_novo_desejo"}), 400
+                desejo = Desejo(nome=nome, valor=float(valor), prioridade=classificar_prioridade(nome))
+                db.add(desejo)
+                db.commit()
+        else:
+            return jsonify({"ok": False, "erro": "informe_id_ou_nome"}), 400
+
+        if valor:
+            desejo.valor = float(valor)
+        plano = WishlistAdvisorService(db).plano_acao_desejo(
+            desejo,
+            prazo_meses=prazo_meses,
+            urgencia=urgencia,
+            parcelas=parcelas,
+            motivo_urgencia=motivo_urgencia,
+            salvar=salvar,
+        )
+        return jsonify(plano)
     finally:
         db.close()
 
@@ -1007,6 +1102,7 @@ def api_analise_desejos():
             # Usa valor já salvo para não ficar consultando internet toda hora
             texto = svc.analisar_compra(d.nome, d.valor or 0)
             diag = svc.diagnostico_compra(d.nome, d.valor or 0)
+            plano_acao = svc.plano_acao_desejo(d, salvar=False)
             resumo = diag.get("decisao", "Aguardar")
             rows.append({
                 "id": d.id,
@@ -1016,12 +1112,16 @@ def api_analise_desejos():
                 "preco_qtd": int(d.preco_qtd or 0),
                 "preco_atualizado_em": d.preco_atualizado_em.isoformat() if d.preco_atualizado_em else "",
                 "prioridade": prioridade,
+                "urgencia": d.urgencia or "normal",
+                "prazo_compra_meses": int(d.prazo_compra_meses or 0),
+                "data_alvo_compra": d.data_alvo_compra.isoformat() if d.data_alvo_compra else "",
                 "resumo": resumo,
                 "melhor_caminho": diag.get("melhor_caminho"),
                 "quando_comprar": diag.get("quando_comprar"),
                 "pagamento_recomendado": diag.get("pagamento_recomendado"),
                 "parcelas_recomendadas": diag.get("parcelas_recomendadas"),
                 "valor_parcela_recomendado": diag.get("valor_parcela_recomendado"),
+                "plano_acao": plano_acao,
                 "analise": texto
             })
 

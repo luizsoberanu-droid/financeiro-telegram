@@ -354,3 +354,16 @@ Novidades:
 
 Endpoint:
 - `GET /api/metas/conquista?valor_meta=600000&prazo_anos=10`
+
+## Aurum Capital v11 - Plano de compra na lista de desejos
+
+Novidades:
+- Cada desejo pode guardar urgencia, motivo, prazo alvo e plano de acao.
+- Exemplo no Telegram: `adiciona geladeira de R$ 2500 urgente na lista de desejos para comprar daqui 2 meses parcelado`.
+- A IA calcula se a urgencia justifica parcelar, qual parcela fica segura, quanto guardar antes da compra e quais travas seguir.
+- O painel de desejos mostra urgencia, prazo, forma recomendada, parcelamento planejado e botao `Plano 2m`.
+
+Endpoints:
+- `POST /api/desejo`
+- `POST /api/desejos/plano_compra`
+- `POST /api/decisao/compra`

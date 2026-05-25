@@ -107,6 +107,36 @@ def _extrair_parcelas(text):
     return max(int(match.group(1)), 1)
 
 
+def _extrair_prazo_compra_meses(text):
+    msg = _normalizar(text)
+    if "proximo mes" in msg or "mes que vem" in msg:
+        return 1
+    match = re.search(r"(?:daqui|em|para)\s+(\d+)\s+mes", msg) or re.search(r"(\d+)\s+mes(?:es)?", msg)
+    if match:
+        return max(int(match.group(1)), 1)
+    if any(t in msg for t in ["urgente", "urgencia", "necessario", "preciso comprar"]):
+        return 2
+    return 0
+
+
+def _extrair_urgencia(text):
+    msg = _normalizar(text)
+    if any(t in msg for t in ["emergencia", "muito urgente", "urgencia critica", "critico"]):
+        return "critica"
+    if any(t in msg for t in ["urgente", "urgencia", "necessario", "preciso comprar", "essencial"]):
+        return "alta"
+    return "normal"
+
+
+def _motivo_urgencia(text):
+    msg = _normalizar(text)
+    if "porque" in msg:
+        return text.split("porque", 1)[-1].strip()
+    if any(t in msg for t in ["urgente", "urgencia", "necessario", "essencial"]):
+        return "Usuario marcou como item urgente/necessario."
+    return None
+
+
 def _extrair_valor_meta(text):
     msg = _normalizar(text)
     valor = _extrair_valor(text)
@@ -123,6 +153,7 @@ def _limpar_nome(text):
     nome = text or ""
     nome = re.sub(r"(?i)\br\$?\s*\d+(?:[\.\s]\d{3})*(?:[,.]\d{2})?\b", " ", nome)
     nome = re.sub(r"(?i)\b\d+\s*x\b", " ", nome)
+    nome = re.sub(r"(?i)\b(?:daqui|em|para)\s+\d+\s+mes(?:es)?\b", " ", nome)
     termos = [
         "comprei", "gastei", "paguei", "lancar", "lançar", "lance", "lança",
         "registre", "registrar", "gasto", "quero comprar", "desejo comprar",
@@ -134,6 +165,10 @@ def _limpar_nome(text):
         "em", "parcelas", "parcela",
         "de", "por", "no cartao", "no cartão", "cartao", "cartão", "credito", "crédito",
         "dinheiro", "pix", "debito", "débito",
+    ]
+    termos += [
+        "urgente", "urgencia", "urgÃªncia", "necessario", "necessÃ¡rio",
+        "essencial", "plano de acao", "plano de aÃ§Ã£o", "daqui",
     ]
     for termo in termos:
         nome = re.sub(r"(?i)\b" + re.escape(termo) + r"\b", " ", nome)
@@ -224,18 +259,32 @@ def _salvar_lancamento(db, chat_id, descricao, valor, forma_pagamento, cartao_no
     return "\n".join(linhas)
 
 
-def _salvar_desejo(db, nome, valor, preco_info=None):
+def _salvar_desejo(db, nome, valor, preco_info=None, urgencia="normal", prazo_meses=0, parcelas=0, motivo_urgencia=None):
     from models.database import Desejo
     from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
 
     prioridade = classificar_prioridade(nome)
+    if urgencia in ["alta", "critica"] and prioridade != "alta":
+        prioridade = "alta"
     existente = db.query(Desejo).filter(Desejo.nome.ilike(nome)).first()
     if existente:
         existente.valor = float(valor)
         existente.prioridade = prioridade
+        existente.urgencia = urgencia or existente.urgencia or "normal"
+        existente.prazo_compra_meses = int(prazo_meses or existente.prazo_compra_meses or 0)
+        existente.parcelas_planejadas = int(parcelas or existente.parcelas_planejadas or 0)
+        existente.motivo_urgencia = motivo_urgencia or existente.motivo_urgencia
         acao = "Item atualizado na lista de desejos."
     else:
-        existente = Desejo(nome=nome, valor=float(valor), prioridade=prioridade)
+        existente = Desejo(
+            nome=nome,
+            valor=float(valor),
+            prioridade=prioridade,
+            urgencia=urgencia or "normal",
+            prazo_compra_meses=int(prazo_meses or 0),
+            parcelas_planejadas=int(parcelas or 0),
+            motivo_urgencia=motivo_urgencia,
+        )
         db.add(existente)
         acao = "Item salvo na lista de desejos."
     db.commit()
@@ -246,6 +295,14 @@ def _salvar_desejo(db, nome, valor, preco_info=None):
         svc.registrar_preco_desejo(desejo, preco_info)
         db.commit()
     plano = svc.diagnostico_compra(nome, valor)
+    plano_acao = svc.plano_acao_desejo(
+        desejo or existente,
+        prazo_meses=prazo_meses,
+        urgencia=urgencia,
+        parcelas=parcelas,
+        motivo_urgencia=motivo_urgencia,
+        salvar=True,
+    )
     analise = svc.analisar_compra(nome, valor)
     fonte = ""
     if preco_info and preco_info.get("ok"):
@@ -259,6 +316,14 @@ def _salvar_desejo(db, nome, valor, preco_info=None):
         f"Decisao: {plano['decisao']}\n"
         f"Melhor caminho: {plano['melhor_caminho']}\n"
         f"Quando comprar: {plano['quando_comprar']}\n\n"
+        f"Plano de acao: {plano_acao['status_plano']}\n"
+        f"Forma recomendada: {plano_acao['forma_recomendada']}\n"
+        f"Prazo alvo: {plano_acao['prazo_compra_meses']} mes(es)\n"
+        f"Guardar antes da compra: R$ {plano_acao['aporte_pre_compra_mensal']:.2f}/mes\n"
+        + (
+            f"Parcelamento sugerido: {plano_acao['parcelas_recomendadas']}x de R$ {plano_acao['valor_parcela_recomendado']:.2f}\n\n"
+            if plano_acao.get("parcelas_recomendadas") else "\n"
+        )
         + analise
     )
 
@@ -293,7 +358,15 @@ def _tratar_pendencia(db, chat_id, text):
         if valor <= 0:
             return f"Qual valor devo considerar para {s['nome_desejo']}?"
         _clear_session(chat_id, db)
-        return _salvar_desejo(db, s["nome_desejo"], valor)
+        return _salvar_desejo(
+            db,
+            s["nome_desejo"],
+            valor,
+            urgencia=s.get("urgencia", "normal"),
+            prazo_meses=s.get("prazo_meses", 0),
+            parcelas=s.get("parcelas", 0),
+            motivo_urgencia=s.get("motivo_urgencia"),
+        )
 
     return None
 
@@ -390,6 +463,10 @@ def _tratar_desejo(db, chat_id, text):
     if "posso comprar" in msg:
         return None
 
+    urgencia = _extrair_urgencia(text)
+    prazo_meses = _extrair_prazo_compra_meses(text)
+    parcelas = _extrair_parcelas(text)
+    motivo_urgencia = _motivo_urgencia(text)
     valor = _extrair_valor_desejo(text)
     nome = _limpar_nome(text)
     if valor <= 0:
@@ -398,14 +475,21 @@ def _tratar_desejo(db, chat_id, text):
             preco_info = buscar_preco_mercado_livre(nome)
             if preco_info.get("ok") and preco_info.get("preco_medio"):
                 valor = float(preco_info["preco_medio"])
-                return _salvar_desejo(db, nome, valor, preco_info)
+                return _salvar_desejo(db, nome, valor, preco_info, urgencia, prazo_meses, parcelas, motivo_urgencia)
         except Exception as e:
             print(f"Aviso: nao consegui buscar preco real do desejo: {e}")
 
-        _set_session(db, chat_id, {"awaiting": "valor_desejo", "nome_desejo": nome})
+        _set_session(db, chat_id, {
+            "awaiting": "valor_desejo",
+            "nome_desejo": nome,
+            "urgencia": urgencia,
+            "prazo_meses": prazo_meses,
+            "parcelas": parcelas,
+            "motivo_urgencia": motivo_urgencia,
+        })
         return f"Entendi o desejo: {nome}. Nao consegui buscar preco real agora. Qual valor devo considerar?"
 
-    return _salvar_desejo(db, nome, valor)
+    return _salvar_desejo(db, nome, valor, urgencia=urgencia, prazo_meses=prazo_meses, parcelas=parcelas, motivo_urgencia=motivo_urgencia)
 
 
 def _tratar_lancamento(db, chat_id, text):
@@ -481,9 +565,20 @@ def _tratar_decisao_compra(db, chat_id, text):
     valor = _extrair_valor(text)
     parcelas = _extrair_parcelas(text)
     salvar = any(t in msg for t in ["lista de desejo", "lista de desejos", "salvar", "guardar"])
+    urgencia = _extrair_urgencia(text)
+    prazo_meses = _extrair_prazo_compra_meses(text)
+    motivo_urgencia = _motivo_urgencia(text)
 
     from services.advisor_service import AdvisorService
-    result = AdvisorService(db).decisao_compra(produto, valor, parcelas, salvar)
+    result = AdvisorService(db).decisao_compra(
+        produto,
+        valor,
+        parcelas,
+        salvar,
+        urgencia=urgencia,
+        prazo_compra_meses=prazo_meses,
+        motivo_urgencia=motivo_urgencia,
+    )
     return result["mensagem"]
 
 

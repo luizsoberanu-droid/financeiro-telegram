@@ -145,6 +145,247 @@ class WishlistAdvisorService:
     def __init__(self, db_session):
         self.db = db_session
 
+    def _moeda(self, valor):
+        return f"R$ {float(valor or 0):.2f}".replace(".", ",")
+
+    def _normalizar_urgencia(self, urgencia):
+        u = (urgencia or "normal").lower().strip()
+        mapa = {
+            "critica": "critica",
+            "crítica": "critica",
+            "alta": "alta",
+            "urgente": "alta",
+            "media": "media",
+            "média": "media",
+            "normal": "normal",
+            "baixa": "baixa",
+        }
+        return mapa.get(u, "normal")
+
+    def _somar_meses(self, data, meses):
+        meses = max(int(meses or 1), 1)
+        mes = data.month - 1 + meses
+        ano = data.year + mes // 12
+        mes = mes % 12 + 1
+        dia = min(data.day, [31, 29 if ano % 4 == 0 and (ano % 100 != 0 or ano % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mes - 1])
+        return data.replace(year=ano, month=mes, day=dia)
+
+    def plano_acao_desejo(
+        self,
+        desejo,
+        prazo_meses=None,
+        urgencia=None,
+        parcelas=None,
+        motivo_urgencia=None,
+        salvar=False,
+    ):
+        from services.card_limit_service import CardLimitService
+
+        nome = getattr(desejo, "nome", str(desejo or "item"))
+        valor = float(getattr(desejo, "valor", 0) or 0)
+        prioridade = (getattr(desejo, "prioridade", None) or classificar_prioridade(nome) or "media").lower()
+        urgencia = self._normalizar_urgencia(urgencia or getattr(desejo, "urgencia", None))
+        if urgencia in ["alta", "critica"] and prioridade not in ["alta"]:
+            prioridade_operacional = "alta"
+        else:
+            prioridade_operacional = prioridade
+
+        prazo_meses = int(prazo_meses or getattr(desejo, "prazo_compra_meses", 0) or (2 if urgencia in ["alta", "critica"] else 1))
+        prazo_meses = max(min(prazo_meses, 60), 1)
+        parcelas_pedidas = int(parcelas or getattr(desejo, "parcelas_planejadas", 0) or 0)
+        if parcelas_pedidas < 0:
+            parcelas_pedidas = 0
+
+        diag = self.diagnostico_compra(nome, valor)
+        saldo, dividas = self._dados_financeiros()
+        renda = float(saldo.get("receita_total") or 0)
+        saldo_proj = float(saldo.get("saldo_projetado", saldo.get("saldo_final", 0)) or 0)
+        divida_total = float(dividas.get("total_divida") or 0)
+        capacidade_guardar = max(min(max(saldo_proj, 0) * 0.70, renda * 0.12), renda * 0.05, 50)
+
+        limites = CardLimitService(self.db).resumo_limites()
+        disponivel_seguro_mes = float(limites.get("disponivel_seguro_mes") or 0)
+        cartoes = limites.get("cartoes", [])
+        maior_disponivel_real = max([float(c.get("disponivel_real") or 0) for c in cartoes], default=0)
+        tem_limite_real = float(limites.get("limite_total_real") or 0) > 0
+        faturas = self._faturas_futuras_cartao(6)
+        maior_fatura_futura = max(faturas.values()) if faturas else 0
+
+        limite_parcela_segura = max(renda * 0.05, 100) if divida_total > 0 else max(renda * 0.08, 150)
+        if urgencia == "critica" and prioridade_operacional == "alta":
+            limite_parcela_segura *= 1.10
+
+        opcoes = []
+        if valor > 0:
+            for n in range(2, 25):
+                parcela = valor / n
+                if tem_limite_real and valor > maior_disponivel_real:
+                    continue
+                if parcela <= limite_parcela_segura and parcela <= max(disponivel_seguro_mes, limite_parcela_segura) and (saldo_proj - parcela) > 0:
+                    opcoes.append({
+                        "parcelas": n,
+                        "valor_parcela": round(parcela, 2),
+                        "fatura_estimada": round(maior_fatura_futura + parcela, 2),
+                    })
+
+        escolhido = None
+        if opcoes:
+            if parcelas_pedidas:
+                escolhido = next((o for o in opcoes if o["parcelas"] == parcelas_pedidas), None)
+            if not escolhido and urgencia in ["alta", "critica"]:
+                alvo_minimo = min(max(prazo_meses * 3, 6), 12)
+                escolhido = next((o for o in opcoes if o["parcelas"] >= alvo_minimo), opcoes[-1])
+            if not escolhido:
+                escolhido = opcoes[0]
+
+        data_alvo = self._somar_meses(datetime.utcnow(), prazo_meses)
+        economia_avista = valor / prazo_meses if valor > 0 else 0
+        bloqueios = []
+
+        if valor <= 0:
+            status = "PRECISA_DE_VALOR"
+            forma = "indefinido"
+            decisao = "Informe o valor ou deixe a busca de preco rodar antes de planejar a compra."
+            aporte_pre_compra = 0
+            colchao = 0
+        elif divida_total > 0 and prioridade_operacional != "alta":
+            status = "ADIAR_ATE_DIVIDA_ALIVIAR"
+            forma = "esperar"
+            decisao = "Nao recomendo comprar em 2 meses: existe divida ativa e o item nao e essencial."
+            aporte_pre_compra = min(capacidade_guardar, valor)
+            colchao = 0
+            bloqueios.append("Reduzir dividas antes de assumir nova parcela.")
+        elif economia_avista <= capacidade_guardar and divida_total <= 0:
+            status = "COMPRAR_A_VISTA_NO_PRAZO"
+            forma = "a_vista"
+            decisao = f"Comprar a vista no prazo alvo, guardando {self._moeda(economia_avista)}/mes."
+            aporte_pre_compra = economia_avista
+            colchao = valor
+        elif escolhido and urgencia in ["alta", "critica"]:
+            status = "COMPRAR_NO_PRAZO_PARCELADO"
+            forma = "parcelado"
+            colchao = escolhido["valor_parcela"] * 2
+            aporte_pre_compra = colchao / prazo_meses
+            decisao = (
+                f"Por ser urgente, o melhor caminho e comprar no alvo de {prazo_meses} mes(es) "
+                f"parcelando em {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}, "
+                "desde que a fatura continue dentro do limite seguro."
+            )
+        elif escolhido:
+            status = "PARCELADO_COM_CONTROLE"
+            forma = "parcelado"
+            colchao = escolhido["valor_parcela"] * 2
+            aporte_pre_compra = colchao / prazo_meses
+            decisao = (
+                f"Compra parcelada possivel com controle: {escolhido['parcelas']}x de "
+                f"{self._moeda(escolhido['valor_parcela'])}."
+            )
+        else:
+            status = "REPLANEJAR"
+            forma = "esperar"
+            aporte_pre_compra = min(capacidade_guardar, valor)
+            colchao = 0
+            decisao = "Ainda nao achei parcela segura. Reduza valor, aumente prazo ou espere mais folga."
+
+        if tem_limite_real and valor > maior_disponivel_real:
+            bloqueios.append(f"O valor passa do maior limite real disponivel: {self._moeda(maior_disponivel_real)}.")
+        if valor > 0 and not tem_limite_real and forma == "parcelado":
+            bloqueios.append("Cadastre o limite real do cartao antes de executar a compra.")
+        if forma == "parcelado" and escolhido and escolhido["valor_parcela"] > limite_parcela_segura:
+            bloqueios.append("A parcela passa do limite seguro calculado.")
+        if saldo_proj <= 0:
+            bloqueios.append("Recompor saldo antes de comprar.")
+
+        acoes = []
+        if forma == "a_vista":
+            acoes = [
+                f"Mes 1: separar {self._moeda(aporte_pre_compra)} em um cofre do item e travar gastos extras.",
+                f"Mes {prazo_meses}: comprar somente se o preco continuar ate {self._moeda(valor)} e o saldo seguir positivo.",
+                "Depois da compra: recompor a reserva antes de liberar outro desejo grande.",
+            ]
+        elif forma == "parcelado" and escolhido:
+            acoes = [
+                f"Mes 1: separar {self._moeda(aporte_pre_compra)} para criar colchao de duas parcelas.",
+                f"Mes {prazo_meses}: revisar preco e limite; comprar em ate {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}.",
+                "Depois da compra: bloquear novos parcelamentos ate a fatura estabilizar.",
+            ]
+        else:
+            acoes = [
+                f"Mes 1: guardar o maximo seguro, hoje estimado em {self._moeda(aporte_pre_compra)}.",
+                "Mes 2: reavaliar saldo, dividas, limite do cartao e buscar alternativa mais barata.",
+                "Se continuar inseguro, manter na lista e revisar no fechamento mensal.",
+            ]
+
+        if bloqueios:
+            acoes.append("Trava de seguranca: " + " ".join(bloqueios[:3]))
+
+        linhas = [
+            "Aurum Capital - plano de acao da lista de desejos",
+            "",
+            f"Item: {nome}",
+            f"Valor: {self._moeda(valor)}",
+            f"Urgencia: {urgencia.upper()}",
+            f"Prazo alvo: {prazo_meses} mes(es) ({data_alvo.strftime('%d/%m/%Y')})",
+            f"Decisao: {status}",
+            f"Forma recomendada: {forma}",
+            decisao,
+            "",
+            "Numeros do plano:",
+            f"- Guardar antes da compra: {self._moeda(aporte_pre_compra)}/mes",
+            f"- Limite seguro de parcela: {self._moeda(limite_parcela_segura)}",
+            f"- Saldo projetado atual: {self._moeda(saldo_proj)}",
+            f"- Limite real disponivel no melhor cartao: {self._moeda(maior_disponivel_real)}",
+        ]
+        if escolhido:
+            linhas += [
+                f"- Parcelamento recomendado: {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}",
+                f"- Fatura estimada com o item: {self._moeda(escolhido['fatura_estimada'])}",
+            ]
+        linhas += ["", "Plano de acao:", *[f"- {a}" for a in acoes]]
+        if motivo_urgencia:
+            linhas += ["", f"Motivo da urgencia registrado: {motivo_urgencia}"]
+        linhas += ["", "Regra: urgencia permite planejar parcelado, mas nao permite furar saldo, limite real, divida e reserva."]
+
+        result = {
+            "ok": True,
+            "id": getattr(desejo, "id", None),
+            "nome": nome,
+            "valor": round(valor, 2),
+            "prioridade": prioridade,
+            "urgencia": urgencia,
+            "motivo_urgencia": motivo_urgencia or getattr(desejo, "motivo_urgencia", None),
+            "prazo_compra_meses": prazo_meses,
+            "data_alvo_compra": data_alvo.isoformat(),
+            "status_plano": status,
+            "decisao": decisao,
+            "forma_recomendada": forma,
+            "parcelas_recomendadas": escolhido["parcelas"] if escolhido else None,
+            "valor_parcela_recomendado": escolhido["valor_parcela"] if escolhido else None,
+            "aporte_pre_compra_mensal": round(aporte_pre_compra, 2),
+            "colchao_minimo_ate_compra": round(colchao, 2),
+            "limite_parcela_segura": round(limite_parcela_segura, 2),
+            "saldo_projetado": round(saldo_proj, 2),
+            "maior_limite_real_cartao": round(maior_disponivel_real, 2),
+            "bloqueios": bloqueios,
+            "acoes": acoes,
+            "diagnostico": diag,
+            "mensagem": "\n".join(linhas),
+        }
+
+        if salvar and hasattr(desejo, "nome"):
+            desejo.urgencia = urgencia
+            desejo.motivo_urgencia = motivo_urgencia or desejo.motivo_urgencia
+            desejo.prazo_compra_meses = prazo_meses
+            desejo.data_alvo_compra = data_alvo
+            desejo.forma_pagamento_planejada = forma
+            desejo.parcelas_planejadas = escolhido["parcelas"] if escolhido else 0
+            desejo.valor_parcela_planejada = escolhido["valor_parcela"] if escolhido else 0
+            desejo.plano_acao = result["mensagem"]
+            desejo.updated_at = datetime.utcnow()
+            self.db.commit()
+
+        return result
+
     def registrar_preco_desejo(self, desejo, preco_info, mes_ref=None):
         if not desejo or not preco_info or not preco_info.get("ok"):
             return None
@@ -258,6 +499,7 @@ class WishlistAdvisorService:
     def ranking_inteligente(self, limite=10):
         from models.database import Desejo
 
+        urgencia_rank = {"critica": 0, "alta": 1, "media": 2, "normal": 3, "baixa": 4}
         prioridade_rank = {"alta": 1, "media": 2, "baixa": 3}
         decisao_rank = {
             "PODE_PLANEJAR": 1,
@@ -272,9 +514,11 @@ class WishlistAdvisorService:
         for desejo in desejos:
             diag = self.diagnostico_compra(desejo.nome, desejo.valor or 0)
             prioridade = (desejo.prioridade or diag.get("prioridade") or "media").lower()
+            urgencia = self._normalizar_urgencia(getattr(desejo, "urgencia", "normal"))
             decisao = diag.get("decisao") or "AGUARDAR_PLANEJANDO"
             score = (
-                prioridade_rank.get(prioridade, 2) * 100
+                urgencia_rank.get(urgencia, 3) * 1000
+                + prioridade_rank.get(prioridade, 2) * 100
                 + decisao_rank.get(decisao, 4) * 10
                 + min(float(desejo.valor or 0) / 1000, 9)
             )
@@ -283,6 +527,8 @@ class WishlistAdvisorService:
                 "nome": desejo.nome,
                 "valor": round(desejo.valor or 0, 2),
                 "prioridade": prioridade,
+                "urgencia": urgencia,
+                "prazo_compra_meses": int(getattr(desejo, "prazo_compra_meses", 0) or 0),
                 "score": round(score, 2),
                 "decisao": decisao,
                 "melhor_caminho": diag.get("melhor_caminho"),

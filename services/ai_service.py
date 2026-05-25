@@ -224,14 +224,17 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "decidir_compra",
-            "description": "Central de decisao: decide se um produto pode ser comprado agora, a vista, parcelado ou se deve esperar. Pode salvar na lista de desejos.",
+            "description": "Central de decisao: decide se um produto pode ser comprado agora, a vista, parcelado ou se deve esperar. Pode salvar na lista de desejos com urgencia, prazo alvo e plano de acao.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "produto": {"type": "string", "description": "Nome do produto ou desejo"},
                     "valor": {"type": "number", "description": "Valor total do produto em reais, se informado"},
                     "parcelas": {"type": "integer", "description": "Quantidade de parcelas desejada"},
-                    "salvar_desejo": {"type": "boolean", "description": "Se deve salvar/atualizar o produto na lista de desejos"}
+                    "salvar_desejo": {"type": "boolean", "description": "Se deve salvar/atualizar o produto na lista de desejos"},
+                    "urgencia": {"type": "string", "description": "Urgencia do item: normal, alta ou critica"},
+                    "prazo_compra_meses": {"type": "integer", "description": "Prazo alvo para compra. Ex: 2 para comprar daqui 2 meses"},
+                    "motivo_urgencia": {"type": "string", "description": "Por que o item e urgente ou importante"}
                 },
                 "required": ["produto"]
             }
@@ -303,7 +306,7 @@ SYSTEM_PROMPT = """Voce e o Aurum Capital, analista patrimonial e estrategista f
 12. Para investimentos, explique risco, prazo, diversificacao e liquidez. NUNCA prometa retorno garantido.
 13. Quando falar de acoes, fundos ou ETFs, use o radar de mercado quando possivel e trate como lista de estudo, nao ordem de compra.
 14. Para metas grandes, como casa de R$ 1.000.000, transforme sonho em plano: primeiro emergencia, roupas/necessidades, veiculo e estabilidade; depois entrada, documentos, carta de credito/consorcio, financiamento ou compra a vista.
-15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar.
+15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar. Se o item for urgente, salve urgencia, prazo alvo e plano de acao.
 16. Quando o assunto for cartao de credito, consulte limite real, limite seguro mensal e uso atual antes de liberar gasto.
 17. Para itens da lista de desejos sem preco informado, nao chute: use busca real de preco/mercado quando a ferramenta estiver disponivel e cite a fonte.
 18. Seja proativo com sazonalidade: frio, calor, chuva e troca de estacao podem virar sugestoes de lista de desejos, mas sempre conferindo orcamento antes.
@@ -752,9 +755,26 @@ class FinancialTools:
             "motivos": motivos or ["Cabe no orcamento atual, mas ainda precisa respeitar reserva e meta patrimonial."],
         }
 
-    def decidir_compra(self, produto: str, valor: float = None, parcelas: int = 1, salvar_desejo: bool = False):
+    def decidir_compra(
+        self,
+        produto: str,
+        valor: float = None,
+        parcelas: int = 1,
+        salvar_desejo: bool = False,
+        urgencia: str = None,
+        prazo_compra_meses: int = None,
+        motivo_urgencia: str = None,
+    ):
         from services.advisor_service import AdvisorService
-        return AdvisorService(self.db).decisao_compra(produto, valor, parcelas, salvar_desejo)
+        return AdvisorService(self.db).decisao_compra(
+            produto,
+            valor,
+            parcelas,
+            salvar_desejo,
+            urgencia=urgencia,
+            prazo_compra_meses=prazo_compra_meses,
+            motivo_urgencia=motivo_urgencia,
+        )
 
     def get_fechamento_mensal(self):
         from services.advisor_service import AdvisorService

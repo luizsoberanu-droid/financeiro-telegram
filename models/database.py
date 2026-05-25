@@ -138,8 +138,17 @@ class Desejo(Base):
     preco_exemplo = Column(Text, nullable=True)
     preco_atualizado_em = Column(DateTime, nullable=True)
     prioridade = Column(String, default="media")
+    urgencia = Column(String, default="normal")
+    motivo_urgencia = Column(Text, nullable=True)
+    prazo_compra_meses = Column(Integer, default=0)
+    data_alvo_compra = Column(DateTime, nullable=True)
+    forma_pagamento_planejada = Column(String, nullable=True)
+    parcelas_planejadas = Column(Integer, default=0)
+    valor_parcela_planejada = Column(Float, default=0.0)
+    plano_acao = Column(Text, nullable=True)
     comprado = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
 
 
 class PrecoDesejoHistorico(Base):
@@ -393,6 +402,15 @@ def _ensure_schema(session):
             ("preco_qtd", "INTEGER DEFAULT 0"),
             ("preco_exemplo", "TEXT"),
             ("preco_atualizado_em", datetime_type),
+            ("urgencia", "VARCHAR DEFAULT 'normal'"),
+            ("motivo_urgencia", "TEXT"),
+            ("prazo_compra_meses", "INTEGER DEFAULT 0"),
+            ("data_alvo_compra", datetime_type),
+            ("forma_pagamento_planejada", "VARCHAR"),
+            ("parcelas_planejadas", "INTEGER DEFAULT 0"),
+            ("valor_parcela_planejada", "FLOAT DEFAULT 0"),
+            ("plano_acao", "TEXT"),
+            ("updated_at", datetime_type),
         ]
         for nome, tipo in colunas_novas:
             if nome not in colunas_desejos:

@@ -1322,6 +1322,24 @@
                         </select>
                     </div>
                 </div>
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label>Urgencia real</label>
+                        <select id="desejo-urgencia">
+                            <option value="normal">Normal</option>
+                            <option value="alta">Alta - preciso planejar</option>
+                            <option value="critica">Critica - necessidade real</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Comprar em quantos meses?</label>
+                        <input type="number" id="desejo-prazo-meses" value="0" min="0" max="60" step="1" placeholder="Ex: 2">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Motivo da urgencia</label>
+                    <input type="text" id="desejo-motivo-urgencia" placeholder="Ex: item essencial de casa, trabalho, saude...">
+                </div>
                 <div class="form-group">
                     <label>Link do produto (opcional)</label>
                     <input type="url" id="desejo-link" placeholder="https://...">
@@ -1358,6 +1376,24 @@
                             <option value="true">Sim</option>
                         </select>
                     </div>
+                </div>
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label>Urgencia</label>
+                        <select id="decisao-urgencia">
+                            <option value="normal">Normal</option>
+                            <option value="alta">Alta</option>
+                            <option value="critica">Critica</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Plano para comprar em meses</label>
+                        <input type="number" id="decisao-prazo-meses" value="2" min="1" max="60">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Motivo da urgencia</label>
+                    <input type="text" id="decisao-motivo-urgencia" placeholder="Por que este item precisa entrar no plano?">
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <button class="btn btn-primary" onclick="analisarCompraCentral()">Analisar compra</button>
@@ -2228,6 +2264,9 @@
             var preco = parseFloat(document.getElementById('desejo-preco').value);
             var prioridade = document.getElementById('desejo-prioridade').value || 'media';
             var cat = document.getElementById('desejo-cat').value || prioridade;
+            var urgencia = document.getElementById('desejo-urgencia').value || 'normal';
+            var prazoMeses = parseInt(document.getElementById('desejo-prazo-meses').value || '0', 10);
+            var motivoUrgencia = document.getElementById('desejo-motivo-urgencia').value;
             var link = document.getElementById('desejo-link').value;
             var precoAtual = parseFloat(document.getElementById('desejo-preco-atual').value) || preco;
             if (!precoAtual || isNaN(precoAtual)) {
@@ -2241,7 +2280,11 @@
             var res = await api('/api/desejo', 'POST', {
                 nome: nome,
                 valor: precoAtual,
-                prioridade: cat,
+                prioridade: prioridade,
+                categoria: cat,
+                urgencia: urgencia,
+                prazo_compra_meses: prazoMeses,
+                motivo_urgencia: motivoUrgencia,
                 link: link
             });
 
@@ -2251,6 +2294,8 @@
                 document.getElementById('desejo-preco').value = '';
                 document.getElementById('desejo-link').value = '';
                 document.getElementById('desejo-preco-atual').value = '';
+                document.getElementById('desejo-prazo-meses').value = '0';
+                document.getElementById('desejo-motivo-urgencia').value = '';
                 await loadDesejos();
                 await carregarAnaliseDesejosIA();
             }
@@ -2270,6 +2315,13 @@ async function loadDesejos() {
                     precoQtd: Number(d.preco_qtd || 0),
                     precoAtualizadoEm: d.preco_atualizado_em || '',
                     prioridade: d.prioridade || 'media',
+                    urgencia: d.urgencia || 'normal',
+                    prazoCompraMeses: Number(d.prazo_compra_meses || 0),
+                    dataAlvoCompra: d.data_alvo_compra || '',
+                    formaPlanejada: d.forma_pagamento_planejada || '',
+                    parcelasPlanejadas: Number(d.parcelas_planejadas || 0),
+                    valorParcelaPlanejada: Number(d.valor_parcela_planejada || 0),
+                    planoAcao: d.plano_acao || '',
                     categoria: d.categoria || d.prioridade || 'media',
                     link: d.link || ''
                 };
@@ -2300,12 +2352,18 @@ async function loadDesejos() {
                         '<p>R$ ' + d.preco.toFixed(2).replace('.', ',') + '</p>' +
                         (d.precoFonte ? '<p>Fonte: ' + d.precoFonte + ' | media de ' + d.precoQtd + ' anuncios</p>' : '') +
                         '<p>Prioridade: ' + (d.categoria || d.prioridade || 'média') + '</p>' +
+                        '<p>Urgencia: ' + (d.urgencia || 'normal') + '</p>' +
+                        (d.prazoCompraMeses ? '<p>Plano: comprar em ' + d.prazoCompraMeses + ' mes(es)' +
+                            (d.formaPlanejada ? ' | ' + d.formaPlanejada : '') +
+                            (d.parcelasPlanejadas ? ' | ' + d.parcelasPlanejadas + 'x de R$ ' + d.valorParcelaPlanejada.toFixed(2).replace('.', ',') : '') +
+                            '</p>' : '') +
                         (d.link ? '<p><a href="' + d.link + '" target="_blank" style="color:var(--accent)">Ver link</a></p>' : '') +
                     '</div>' +
                     '<div class="wishlist-status">' +
                         '<div style="font-weight:bold;color:' + cor + '">' + texto + '</div>' +
                         '<div style="font-size:0.85em;color:var(--text-dim);margin-top:5px;">' + diff + '</div>' +
                         '<button class="btn btn-sm btn-primary" style="margin-top:8px;" onclick="analisarDesejoIndividual(' + d.id + ')">IA</button> ' +
+                        '<button class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="planejarDesejoCompra(' + d.id + ')">Plano 2m</button> ' +
                         '<button class="btn btn-sm btn-danger" style="margin-top:8px;" onclick="deleteDesejo(' + d.id + ')">Remover</button>' +
                     '</div>' +
                 '</div>';
@@ -2334,7 +2392,11 @@ async function loadDesejos() {
                 html += '<li><b>' + d.nome + '</b> — R$ ' + Number(d.valor || 0).toFixed(2).replace('.', ',') +
                         ' | Prioridade: ' + d.prioridade + ' | ' + d.resumo +
                         '<br><span style="color:var(--text-dim)">Melhor caminho: ' + (d.melhor_caminho || '-') + '</span>' +
-                        '<br><span style="color:var(--text-dim)">Quando comprar: ' + (d.quando_comprar || '-') + '</span></li>';
+                        '<br><span style="color:var(--text-dim)">Quando comprar: ' + (d.quando_comprar || '-') + '</span>' +
+                        (d.plano_acao ? '<br><span style="color:var(--text-dim)">Plano: ' + escapeHtml(d.plano_acao.status_plano || '-') +
+                            ' | ' + escapeHtml(d.plano_acao.forma_recomendada || '-') +
+                            (d.plano_acao.parcelas_recomendadas ? ' | ' + d.plano_acao.parcelas_recomendadas + 'x de R$ ' + Number(d.plano_acao.valor_parcela_recomendado || 0).toFixed(2).replace('.', ',') : '') +
+                            '</span>' : '') + '</li>';
             });
             html += '</ul>';
             html += '<p style="margin-top:10px;color:var(--text-dim);">Regra: geladeira/remédio/vestuário básico vêm antes de celular, videogame e lazer.</p>';
@@ -2346,6 +2408,9 @@ async function loadDesejos() {
             var valorRaw = document.getElementById('decisao-valor').value;
             var parcelas = parseInt(document.getElementById('decisao-parcelas').value || '1', 10);
             var salvar = document.getElementById('decisao-salvar').value === 'true';
+            var urgencia = document.getElementById('decisao-urgencia').value || 'normal';
+            var prazoMeses = parseInt(document.getElementById('decisao-prazo-meses').value || '2', 10);
+            var motivoUrgencia = document.getElementById('decisao-motivo-urgencia').value;
             var resultEl = document.getElementById('decisao-compra-result');
             if (!produto) {
                 showToast('Informe o produto para analisar.', 'error');
@@ -2355,7 +2420,10 @@ async function loadDesejos() {
             var payload = {
                 produto: produto,
                 parcelas: parcelas || 1,
-                salvar_desejo: salvar
+                salvar_desejo: salvar,
+                urgencia: urgencia,
+                prazo_compra_meses: prazoMeses,
+                motivo_urgencia: motivoUrgencia
             };
             if (valorRaw) payload.valor = parseFloat(valorRaw);
             var res = await api('/api/decisao/compra', 'POST', payload);
@@ -2371,6 +2439,22 @@ async function loadDesejos() {
             if (res.salvo_desejo) {
                 await loadDesejos();
             }
+        }
+
+        async function planejarDesejoCompra(id) {
+            showToast('Montando plano de acao para 2 meses...', 'info');
+            var res = await api('/api/desejos/plano_compra', 'POST', {
+                id: id,
+                prazo_meses: 2,
+                urgencia: 'alta',
+                salvar: true
+            });
+            if (!res || !res.ok) {
+                showToast('Nao consegui montar o plano agora.', 'error');
+                return;
+            }
+            await loadDesejos();
+            alert(res.mensagem || 'Plano de acao criado.');
         }
 
         async function carregarRadarDesejos() {

@@ -265,7 +265,16 @@ class AdvisorService:
             "mensagem": "\n".join(linhas),
         }
 
-    def decisao_compra(self, produto, valor=None, parcelas=None, salvar_desejo=False):
+    def decisao_compra(
+        self,
+        produto,
+        valor=None,
+        parcelas=None,
+        salvar_desejo=False,
+        urgencia=None,
+        prazo_compra_meses=None,
+        motivo_urgencia=None,
+    ):
         from models.database import Desejo
         from services.ai_service import FinancialTools
         from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
@@ -274,6 +283,7 @@ class AdvisorService:
         valor = float(valor or 0)
         parcelas = int(parcelas or 1)
         parcelas = max(parcelas, 1)
+        prazo_compra_meses = int(prazo_compra_meses or (2 if str(urgencia or "").lower() in ["alta", "critica", "urgente"] else 0) or 0)
 
         wishlist = WishlistAdvisorService(self.db)
         tools = FinancialTools(self.db)
@@ -287,6 +297,7 @@ class AdvisorService:
         analise_parcelas = tools.analisar_compra_parcelada(produto, valor, parcelas) if valor > 0 else None
 
         desejo = None
+        plano_acao = None
         if salvar_desejo and valor > 0:
             desejo = self.db.query(Desejo).filter(Desejo.nome.ilike(produto)).first()
             if not desejo:
@@ -296,6 +307,14 @@ class AdvisorService:
                 desejo.valor = valor
                 desejo.prioridade = desejo.prioridade or classificar_prioridade(produto)
             self.db.commit()
+            plano_acao = wishlist.plano_acao_desejo(
+                desejo,
+                prazo_meses=prazo_compra_meses,
+                urgencia=urgencia,
+                parcelas=parcelas,
+                motivo_urgencia=motivo_urgencia,
+                salvar=True,
+            )
 
         decisao = diag.get("decisao", "AGUARDAR_PLANEJANDO")
         if valor <= 0:
@@ -337,6 +356,14 @@ class AdvisorService:
         if desejo:
             linhas.append("")
             linhas.append("Item salvo/atualizado na lista de desejos para eu acompanhar o preco e te avisar no momento certo.")
+        if plano_acao:
+            linhas.append("")
+            linhas.append("Plano de acao salvo no desejo:")
+            linhas.append(f"- Prazo alvo: {plano_acao['prazo_compra_meses']} mes(es)")
+            linhas.append(f"- Forma recomendada: {plano_acao['forma_recomendada']}")
+            if plano_acao.get("parcelas_recomendadas"):
+                linhas.append(f"- Parcelamento: {plano_acao['parcelas_recomendadas']}x de {self._moeda(plano_acao.get('valor_parcela_recomendado'))}")
+            linhas.append(f"- Guardar antes da compra: {self._moeda(plano_acao.get('aporte_pre_compra_mensal'))}/mes")
 
         linhas.append("")
         linhas.append("Proximo passo: se quiser, diga 'salvar esse item na lista de desejos' ou me mande outro valor/parcelas para simular.")
@@ -349,6 +376,7 @@ class AdvisorService:
             "decisao": titulo,
             "diagnostico": diag,
             "analise_parcelas": analise_parcelas,
+            "plano_acao": plano_acao,
             "salvo_desejo": bool(desejo),
             "mensagem": "\n".join(linhas),
         }
