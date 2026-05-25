@@ -166,6 +166,17 @@ class Conversa(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
 
+class InteracaoPendente(Base):
+    __tablename__ = 'interacoes_pendentes'
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(String, nullable=False, index=True)
+    tipo = Column(String, nullable=False)
+    payload = Column(Text, nullable=True)
+    ativo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ResumoMensal(Base):
     __tablename__ = 'resumo_mensal'
     id = Column(Integer, primary_key=True)

@@ -275,7 +275,10 @@ Integracoes conversacionais no Telegram:
 - `quanto posso usar do saldo?`: informa se pode usar mais, quanto ainda esta liberado com seguranca ou quanto precisa reduzir.
 - `onde investir meu dinheiro agora?`: cruza renda, dividas, reserva, saldo livre, renda fixa, bancos, ETFs e acoes para montar uma lista de estudo com controle de risco.
 - `quero comprar celular de R$ 2500`: adiciona na lista de desejos e analisa quando pode comprar.
+- `posso comprar celular de R$ 2500 em 10x?`: usa a Central de Decisao para dizer se compra, espera, parcela ou compra a vista.
 - `adiciona PlayStation 5 na lista de desejos`: busca media real de preco na internet, salva o item e devolve decisao, melhor caminho, prazo e forma de pagamento recomendada.
+- `fechamento do mes`: salva o resumo mensal, compara com o mes anterior e devolve proximas acoes.
+- `radar de desejos`: mostra quedas de preco e itens que ficaram mais seguros para comprar.
 - Revisao mensal: quando as automacoes Telegram estao ligadas, o Aurum Capital consulta a media dos desejos todo mes, guarda historico e avisa se o preco cair ou se a compra ficar segura.
 - Check-up sazonal: o Aurum Capital cruza estacao do ano e clima para sugerir itens como roupas de frio, roupas leves, cobertor ou ventilador antes da necessidade apertar.
 - Check-up do analista: quando `TELEGRAM_AUTOMATIONS_ENABLED=true`, o Aurum envia todo dia uma leitura com risco do mes, saldo, dividas, limite seguro de credito, desejos ordenados por prioridade e proximas acoes.
@@ -324,4 +327,18 @@ Endpoints uteis para monitoramento externo:
 - `GET /api/ping`
 - `GET /api/persistencia/status`
 - `GET /api/analista/checkup?enviar_telegram=true`
+- `GET /api/analista/fechamento_mensal?enviar_telegram=true`
+- `GET /api/desejos/radar`
+- `POST /api/decisao/compra`
 - `POST /api/salvamento/google_sheets`
+
+## Aurum Capital v9 — Interacoes de analista financeiro
+
+Novidades:
+- Pendencias de conversa no Telegram agora ficam salvas no banco em `interacoes_pendentes`.
+- Se voce disser `comprei lanche 25`, a IA pergunta a forma de pagamento e salva a resposta mesmo se o worker reiniciar entre uma mensagem e outra.
+- Central de Decisao no painel de desejos para simular compra, valor, parcelas e opcao de salvar na lista.
+- Endpoint `/api/decisao/compra` para decidir compra por API/Telegram.
+- Endpoint `/api/analista/fechamento_mensal` para fechamento mensal com comparativo.
+- Endpoint `/api/desejos/radar` para oportunidades da lista de desejos.
+- A IA ganhou ferramentas internas para fechamento mensal, radar de desejos e decisao de compra.

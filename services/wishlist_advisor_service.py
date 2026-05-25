@@ -255,6 +255,111 @@ class WishlistAdvisorService:
             "mensagem": "\n".join(linhas),
         }
 
+    def ranking_inteligente(self, limite=10):
+        from models.database import Desejo
+
+        prioridade_rank = {"alta": 1, "media": 2, "baixa": 3}
+        decisao_rank = {
+            "PODE_PLANEJAR": 1,
+            "PARCELADO_COM_CONTROLE": 2,
+            "AGUARDAR_PLANEJANDO": 3,
+            "NAO_COMPRAR_AGORA": 4,
+            "PRECISO_DO_VALOR": 5,
+        }
+
+        desejos = self.db.query(Desejo).filter(Desejo.comprado == False).all()
+        rows = []
+        for desejo in desejos:
+            diag = self.diagnostico_compra(desejo.nome, desejo.valor or 0)
+            prioridade = (desejo.prioridade or diag.get("prioridade") or "media").lower()
+            decisao = diag.get("decisao") or "AGUARDAR_PLANEJANDO"
+            score = (
+                prioridade_rank.get(prioridade, 2) * 100
+                + decisao_rank.get(decisao, 4) * 10
+                + min(float(desejo.valor or 0) / 1000, 9)
+            )
+            rows.append({
+                "id": desejo.id,
+                "nome": desejo.nome,
+                "valor": round(desejo.valor or 0, 2),
+                "prioridade": prioridade,
+                "score": round(score, 2),
+                "decisao": decisao,
+                "melhor_caminho": diag.get("melhor_caminho"),
+                "quando_comprar": diag.get("quando_comprar"),
+                "pagamento_recomendado": diag.get("pagamento_recomendado"),
+                "parcelas_recomendadas": diag.get("parcelas_recomendadas"),
+                "valor_parcela_recomendado": diag.get("valor_parcela_recomendado"),
+                "motivos": diag.get("motivos", []),
+            })
+
+        rows.sort(key=lambda item: item["score"])
+        return rows[:limite]
+
+    def radar_oportunidades(self, limite=10):
+        from models.database import Desejo, PrecoDesejoHistorico
+
+        desejos = self.db.query(Desejo).filter(Desejo.comprado == False).all()
+        oportunidades = []
+
+        for desejo in desejos:
+            atual = float(desejo.valor or desejo.preco_medio or 0)
+            historicos = (
+                self.db.query(PrecoDesejoHistorico)
+                .filter(PrecoDesejoHistorico.desejo_id == desejo.id)
+                .order_by(PrecoDesejoHistorico.mes_ref.desc())
+                .all()
+            )
+            referencias = [
+                float(h.preco_medio or h.preco_mediano or 0)
+                for h in historicos
+                if float(h.preco_medio or h.preco_mediano or 0) > 0
+            ]
+            referencia = referencias[1] if len(referencias) > 1 else (referencias[0] if referencias else atual)
+            queda_pct = 0
+            if referencia and atual and atual < referencia:
+                queda_pct = ((referencia - atual) / referencia) * 100
+
+            diag = self.diagnostico_compra(desejo.nome, atual)
+            destaque = queda_pct >= 5 or diag.get("decisao") in ["PODE_PLANEJAR", "PARCELADO_COM_CONTROLE"]
+            oportunidades.append({
+                "id": desejo.id,
+                "nome": desejo.nome,
+                "valor_atual": round(atual, 2),
+                "referencia": round(referencia or 0, 2),
+                "queda_pct": round(queda_pct, 1),
+                "destaque": bool(destaque),
+                "decisao": diag.get("decisao"),
+                "melhor_caminho": diag.get("melhor_caminho"),
+                "quando_comprar": diag.get("quando_comprar"),
+                "preco_fonte": desejo.preco_fonte,
+            })
+
+        oportunidades.sort(key=lambda item: (not item["destaque"], -item["queda_pct"], item["valor_atual"]))
+
+        linhas = ["Radar de oportunidades da lista de desejos", ""]
+        destaques = [o for o in oportunidades if o["destaque"]]
+        if not oportunidades:
+            linhas.append("Sua lista de desejos esta vazia. Me diga um item e eu busco a media real antes de salvar.")
+        elif not destaques:
+            linhas.append("Nao encontrei queda relevante nem compra claramente segura agora.")
+            linhas.append("A melhor atitude e manter a lista ordenada e revisar no proximo fechamento.")
+        else:
+            linhas.append("Itens que merecem sua atencao:")
+            for item in destaques[:limite]:
+                linhas.append(
+                    f"- {item['nome']}: R$ {item['valor_atual']:.2f} | queda {item['queda_pct']:.1f}% | "
+                    f"{item['decisao']} | {item['melhor_caminho']}"
+                )
+        linhas.append("")
+        linhas.append("Regra: queda de preco nao libera compra sozinha; ela precisa caber no saldo, reserva, dividas e cartao.")
+
+        return {
+            "ok": True,
+            "oportunidades": oportunidades[:limite],
+            "mensagem": "\n".join(linhas),
+        }
+
     def _dados_financeiros(self):
         from services.ai_service import FinancialTools
         tools = FinancialTools(self.db)

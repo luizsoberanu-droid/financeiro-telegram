@@ -689,6 +689,55 @@ def api_analista_checkup():
         db.close()
 
 
+@api_bp.route('/analista/fechamento_mensal', methods=['GET', 'POST'])
+def api_analista_fechamento_mensal():
+    db = get_db_session()
+    try:
+        from services.advisor_service import AdvisorService
+        from services.alert_service import telegram_send
+
+        svc = AdvisorService(db)
+        p = request.get_json(silent=True) or {}
+        mes_ref = p.get("mes_ref") or request.args.get("mes_ref")
+        result = svc.fechamento_mensal(mes_ref)
+
+        enviar_raw = p.get("enviar_telegram") if request.method == "POST" else request.args.get("enviar_telegram", "")
+        enviar = str(enviar_raw).lower() in ["true", "1", "sim", "yes"]
+        chat_id = p.get("chat_id") or request.args.get("chat_id")
+        if enviar:
+            destinos = [chat_id] if chat_id else svc.chat_ids_destino()
+            result["telegram"] = []
+            for destino in destinos:
+                ok, detail = telegram_send(destino, result["mensagem"])
+                result["telegram"].append({"chat_id": destino, "ok": ok, "detail": detail})
+
+        return jsonify(result)
+    finally:
+        db.close()
+
+
+@api_bp.route('/decisao/compra', methods=['GET', 'POST'])
+def api_decisao_compra():
+    db = get_db_session()
+    try:
+        from services.advisor_service import AdvisorService
+
+        p = request.get_json(silent=True) or {}
+        produto = p.get("produto") or request.args.get("produto") or request.args.get("item")
+        valor = p.get("valor", request.args.get("valor"))
+        parcelas = p.get("parcelas", request.args.get("parcelas", 1))
+        salvar = p.get("salvar_desejo", request.args.get("salvar_desejo", "false"))
+        salvar = str(salvar).lower() in ["true", "1", "sim", "yes"]
+
+        if not produto:
+            return jsonify({"ok": False, "erro": "produto_obrigatorio"}), 400
+
+        result = AdvisorService(db).decisao_compra(produto, valor, parcelas, salvar)
+        return jsonify(result)
+    finally:
+        db.close()
+
+
 # ==================== DESEJOS ====================
 
 @api_bp.route('/desejos')
@@ -959,6 +1008,17 @@ def api_revisao_precos_desejos():
             from services.alert_service import telegram_send
             telegram_send(p.get("chat_id", "default"), result["mensagem"])
         return jsonify(result)
+    finally:
+        db.close()
+
+
+@api_bp.route('/desejos/radar')
+def api_desejos_radar():
+    db = get_db_session()
+    try:
+        limite = int(request.args.get("limite", 10))
+        from services.wishlist_advisor_service import WishlistAdvisorService
+        return jsonify(WishlistAdvisorService(db).radar_oportunidades(limite))
     finally:
         db.close()
 

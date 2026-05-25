@@ -20,6 +20,7 @@ class SaveVaultService:
             Conversa,
             Desejo,
             Divida,
+            InteracaoPendente,
             Lancamento,
             Limite,
             MovimentoAlimentacao,
@@ -43,6 +44,7 @@ class SaveVaultService:
             ("desejos", Desejo),
             ("precos_desejos_historico", PrecoDesejoHistorico),
             ("conversas", Conversa),
+            ("interacoes_pendentes", InteracaoPendente),
             ("alertas", Alerta),
         ]
 

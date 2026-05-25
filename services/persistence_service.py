@@ -15,6 +15,7 @@ class PersistenceService:
             Apontamento,
             Conversa,
             Desejo,
+            InteracaoPendente,
             Lancamento,
             PrecoDesejoHistorico,
             ResumoMensal,
@@ -30,6 +31,7 @@ class PersistenceService:
             "desejos": self._count(Desejo),
             "precos_desejos": self._count(PrecoDesejoHistorico),
             "conversas_ia": self._count(Conversa),
+            "interacoes_pendentes": self._count(InteracaoPendente),
             "apontamentos": self._count(Apontamento),
         }
 

@@ -1308,6 +1308,38 @@
                 <button class="btn btn-primary" onclick="addDesejo()">Adicionar</button>
             </div>
 
+            <div class="card" style="margin-bottom:20px;">
+                <h3>Central de Decisao</h3>
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label>Produto</label>
+                        <input type="text" id="decisao-produto" placeholder="Ex: celular, geladeira, tenis...">
+                    </div>
+                    <div class="form-group">
+                        <label>Valor (R$)</label>
+                        <input type="number" id="decisao-valor" placeholder="Opcional" step="0.01">
+                    </div>
+                </div>
+                <div class="two-cols">
+                    <div class="form-group">
+                        <label>Parcelas</label>
+                        <input type="number" id="decisao-parcelas" value="1" min="1" max="24">
+                    </div>
+                    <div class="form-group">
+                        <label>Salvar na lista</label>
+                        <select id="decisao-salvar">
+                            <option value="false">Nao</option>
+                            <option value="true">Sim</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="analisarCompraCentral()">Analisar compra</button>
+                    <button class="btn btn-outline" onclick="carregarRadarDesejos()">Radar de oportunidades</button>
+                </div>
+                <div id="decisao-compra-result" class="suggestion-box" style="margin-top:14px;">Aguardando uma compra para analisar.</div>
+            </div>
+
             <div id="lista-desejos">
                 <h3 style="color:var(--accent);margin-bottom:15px;">Itens na Lista</h3>
                 <div id="desejos-container">
@@ -2231,6 +2263,51 @@ async function loadDesejos() {
             html += '</ul>';
             html += '<p style="margin-top:10px;color:var(--text-dim);">Regra: geladeira/remédio/vestuário básico vêm antes de celular, videogame e lazer.</p>';
             analise.innerHTML = html;
+        }
+
+        async function analisarCompraCentral() {
+            var produto = document.getElementById('decisao-produto').value;
+            var valorRaw = document.getElementById('decisao-valor').value;
+            var parcelas = parseInt(document.getElementById('decisao-parcelas').value || '1', 10);
+            var salvar = document.getElementById('decisao-salvar').value === 'true';
+            var resultEl = document.getElementById('decisao-compra-result');
+            if (!produto) {
+                showToast('Informe o produto para analisar.', 'error');
+                return;
+            }
+            if (resultEl) resultEl.textContent = 'Analisando compra...';
+            var payload = {
+                produto: produto,
+                parcelas: parcelas || 1,
+                salvar_desejo: salvar
+            };
+            if (valorRaw) payload.valor = parseFloat(valorRaw);
+            var res = await api('/api/decisao/compra', 'POST', payload);
+            if (!res || !res.ok) {
+                if (resultEl) resultEl.textContent = 'Nao consegui analisar essa compra agora.';
+                return;
+            }
+            if (resultEl) {
+                resultEl.innerHTML =
+                    '<b>' + escapeHtml(res.decisao || 'DECISAO') + '</b><br>' +
+                    escapeHtml(res.mensagem || '').replace(/\n/g, '<br>');
+            }
+            if (res.salvo_desejo) {
+                await loadDesejos();
+            }
+        }
+
+        async function carregarRadarDesejos() {
+            var resultEl = document.getElementById('decisao-compra-result');
+            if (resultEl) resultEl.textContent = 'Lendo radar de oportunidades...';
+            var res = await api('/api/desejos/radar');
+            if (!res || !res.ok) {
+                if (resultEl) resultEl.textContent = 'Nao consegui carregar o radar agora.';
+                return;
+            }
+            if (resultEl) {
+                resultEl.innerHTML = escapeHtml(res.mensagem || '').replace(/\n/g, '<br>');
+            }
         }
 
         async function analisarDesejoIndividual(id) {

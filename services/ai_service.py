@@ -204,6 +204,39 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "decidir_compra",
+            "description": "Central de decisao: decide se um produto pode ser comprado agora, a vista, parcelado ou se deve esperar. Pode salvar na lista de desejos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "produto": {"type": "string", "description": "Nome do produto ou desejo"},
+                    "valor": {"type": "number", "description": "Valor total do produto em reais, se informado"},
+                    "parcelas": {"type": "integer", "description": "Quantidade de parcelas desejada"},
+                    "salvar_desejo": {"type": "boolean", "description": "Se deve salvar/atualizar o produto na lista de desejos"}
+                },
+                "required": ["produto"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_fechamento_mensal",
+            "description": "Fecha o mes atual, compara com o mes anterior e retorna proximas acoes financeiras.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_radar_desejos",
+            "description": "Retorna oportunidades da lista de desejos, quedas de preco e itens liberados com controle.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_analise_investimentos",
             "description": "Retorna uma analise completa de investimentos com fase financeira, renda fixa, bancos, acoes, ETFs, radar de mercado e proximos passos.",
             "parameters": {
@@ -681,6 +714,18 @@ class FinancialTools:
             "motivos": motivos or ["Cabe no orcamento atual, mas ainda precisa respeitar reserva e meta patrimonial."],
         }
 
+    def decidir_compra(self, produto: str, valor: float = None, parcelas: int = 1, salvar_desejo: bool = False):
+        from services.advisor_service import AdvisorService
+        return AdvisorService(self.db).decisao_compra(produto, valor, parcelas, salvar_desejo)
+
+    def get_fechamento_mensal(self):
+        from services.advisor_service import AdvisorService
+        return AdvisorService(self.db).fechamento_mensal()
+
+    def get_radar_desejos(self):
+        from services.wishlist_advisor_service import WishlistAdvisorService
+        return WishlistAdvisorService(self.db).radar_oportunidades()
+
     def get_radar_mercado(self, tickers: Optional[List[str]] = None):
         try:
             from services.market_service import MarketService
@@ -725,6 +770,9 @@ class AurumCapitalAI:
             "get_visao_patrimonial": self.tools.get_visao_patrimonial,
             "planejar_meta_patrimonial": self.tools.planejar_meta_patrimonial,
             "analisar_compra_parcelada": self.tools.analisar_compra_parcelada,
+            "decidir_compra": self.tools.decidir_compra,
+            "get_fechamento_mensal": self.tools.get_fechamento_mensal,
+            "get_radar_desejos": self.tools.get_radar_desejos,
             "get_radar_mercado": self.tools.get_radar_mercado,
             "get_analise_investimentos": self.tools.get_analise_investimentos,
         }

@@ -78,6 +78,14 @@ def iniciar_cron_jobs(app):
     )
 
     scheduler.add_job(
+        func=lambda: enviar_fechamento_mensal_analista(app),
+        trigger=CronTrigger(day='last', hour=20, minute=20),
+        id='fechamento_mensal_analista',
+        name='Fechamento Mensal do Analista',
+        replace_existing=True
+    )
+
+    scheduler.add_job(
         func=lambda: enviar_checkup_sazonal(app),
         trigger=CronTrigger(day=1, hour=10, minute=45),
         id='checkup_sazonal',
@@ -87,7 +95,7 @@ def iniciar_cron_jobs(app):
 
     telegram_automations = os.getenv("TELEGRAM_AUTOMATIONS_ENABLED", "false").lower() in ["true", "1", "sim", "yes"]
     if not telegram_automations:
-        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas", "checkup_analista_patrimonial", "revisao_mensal_desejos", "checkup_sazonal"]:
+        for job_id in ["alertas_diarios", "alertas_vencimento", "relatorio_mensal", "checkup_dividas", "checkup_analista_patrimonial", "revisao_mensal_desejos", "fechamento_mensal_analista", "checkup_sazonal"]:
             try:
                 scheduler.remove_job(job_id)
             except Exception:
@@ -251,6 +259,26 @@ def enviar_revisao_mensal_desejos(app):
             print(f"[{datetime.now()}] Revisao mensal de desejos enviada")
         except Exception as e:
             print(f"[{datetime.now()}] Erro revisao mensal de desejos: {e}")
+        finally:
+            db.close()
+
+
+def enviar_fechamento_mensal_analista(app):
+    """Envia um fechamento do mes com comparativo e proximas acoes."""
+    with app.app_context():
+        from models.database import SessionLocal
+        from services.advisor_service import AdvisorService
+        from services.alert_service import telegram_send
+
+        db = SessionLocal()
+        try:
+            svc = AdvisorService(db)
+            result = svc.fechamento_mensal()
+            for chat_id in svc.chat_ids_destino():
+                telegram_send(chat_id, result["mensagem"])
+            print(f"[{datetime.now()}] Fechamento mensal do Analista enviado")
+        except Exception as e:
+            print(f"[{datetime.now()}] Erro fechamento mensal do Analista: {e}")
         finally:
             db.close()
 

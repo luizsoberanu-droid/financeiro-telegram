@@ -28,15 +28,40 @@ def telegram_send(chat_id, text):
         return False, str(e)
 
 
-def _session(chat_id):
+def _session(chat_id, db=None):
     sid = str(chat_id)
     if sid not in SESSIONS:
         SESSIONS[sid] = {}
+    if db is not None:
+        try:
+            from services.conversation_state_service import ConversationStateService
+            persisted = ConversationStateService(db).get(sid)
+            if persisted:
+                SESSIONS[sid] = persisted
+        except Exception as e:
+            print(f"Aviso: nao consegui ler interacao pendente: {e}")
     return SESSIONS[sid]
 
 
-def _clear_session(chat_id):
+def _set_session(db, chat_id, payload):
+    sid = str(chat_id)
+    SESSIONS[sid] = dict(payload or {})
+    try:
+        from services.conversation_state_service import ConversationStateService
+        ConversationStateService(db).set(sid, SESSIONS[sid].get("awaiting"), SESSIONS[sid])
+    except Exception as e:
+        print(f"Aviso: nao consegui salvar interacao pendente: {e}")
+    return SESSIONS[sid]
+
+
+def _clear_session(chat_id, db=None):
     SESSIONS[str(chat_id)] = {}
+    if db is not None:
+        try:
+            from services.conversation_state_service import ConversationStateService
+            ConversationStateService(db).clear(chat_id)
+        except Exception as e:
+            print(f"Aviso: nao consegui limpar interacao pendente: {e}")
 
 
 def _normalizar(text):
@@ -74,6 +99,26 @@ def _extrair_valor_desejo(text):
     return valor
 
 
+def _extrair_parcelas(text):
+    msg = _normalizar(text)
+    match = re.search(r"(\d+)\s*x", msg) or re.search(r"em\s+(\d+)\s+parcelas?", msg)
+    if not match:
+        return 1
+    return max(int(match.group(1)), 1)
+
+
+def _extrair_valor_meta(text):
+    msg = _normalizar(text)
+    valor = _extrair_valor(text)
+    if re.search(r"\bum\s+milha?o\b", msg):
+        return 1000000
+    if any(t in msg for t in ["milhao", "milhoes"]):
+        return valor * 1000000 if 0 < valor < 10000 else valor
+    if " mil" in msg and 0 < valor < 1000:
+        return valor * 1000
+    return valor
+
+
 def _limpar_nome(text):
     nome = text or ""
     nome = re.sub(r"(?i)\br\$?\s*\d+(?:[\.\s]\d{3})*(?:[,.]\d{2})?\b", " ", nome)
@@ -81,10 +126,12 @@ def _limpar_nome(text):
     termos = [
         "comprei", "gastei", "paguei", "lancar", "lançar", "lance", "lança",
         "registre", "registrar", "gasto", "quero comprar", "desejo comprar",
+        "posso comprar", "vale a pena comprar", "devo comprar", "analisa compra de", "analisar compra de",
         "adicionar desejo", "adiciona desejo", "salvar desejo", "guardar desejo",
         "colocar na lista de desejos", "coloca na lista de desejos", "adicionar na lista de desejos",
         "guardar na lista de desejos", "na lista de desejos", "lista de desejos", "lista de desejo",
         "adiciona", "adicionar", "coloca", "colocar", "salva", "salvar", "guardar",
+        "em", "parcelas", "parcela",
         "de", "por", "no cartao", "no cartão", "cartao", "cartão", "credito", "crédito",
         "dinheiro", "pix", "debito", "débito",
     ]
@@ -151,8 +198,7 @@ def _salvar_lancamento(db, chat_id, descricao, valor, forma_pagamento, cartao_no
     if forma_pagamento == "cartao":
         cartao = _identificar_cartao(db, cartao_nome or "")
         if not cartao:
-            s = _session(chat_id)
-            s.update({
+            _set_session(db, chat_id, {
                 "awaiting": "cartao_lancamento",
                 "descricao": descricao,
                 "valor": valor,
@@ -161,7 +207,7 @@ def _salvar_lancamento(db, chat_id, descricao, valor, forma_pagamento, cartao_no
         cartao_nome = cartao.nome
 
     item = FinanceService(db).add_lancamento(descricao, valor, forma_pagamento, cartao_nome)
-    _clear_session(chat_id)
+    _clear_session(chat_id, db)
 
     linhas = [
         "Lancamento salvo no banco.",
@@ -218,7 +264,7 @@ def _salvar_desejo(db, nome, valor, preco_info=None):
 
 
 def _tratar_pendencia(db, chat_id, text):
-    s = _session(chat_id)
+    s = _session(chat_id, db)
     awaiting = s.get("awaiting")
     if not awaiting:
         return None
@@ -239,14 +285,14 @@ def _tratar_pendencia(db, chat_id, text):
             return "Qual cartao? Escolha um destes:\n" + _listar_cartoes(db)
         from services.card_limit_service import CardLimitService
         CardLimitService(db).atualizar_limite_real(cartao.nome, s["limite_real"])
-        _clear_session(chat_id)
+        _clear_session(chat_id, db)
         return "Limite real registrado.\n\n" + _formatar_limites(db)
 
     if awaiting == "valor_desejo":
         valor = _extrair_valor_desejo(text)
         if valor <= 0:
             return f"Qual valor devo considerar para {s['nome_desejo']}?"
-        _clear_session(chat_id)
+        _clear_session(chat_id, db)
         return _salvar_desejo(db, s["nome_desejo"], valor)
 
     return None
@@ -273,8 +319,7 @@ def _tratar_limite_cartao(db, chat_id, text):
 
     cartao = _identificar_cartao(db, text)
     if not cartao:
-        s = _session(chat_id)
-        s.update({"awaiting": "cartao_limite", "limite_real": valor})
+        _set_session(db, chat_id, {"awaiting": "cartao_limite", "limite_real": valor})
         return f"Esse limite real de R$ {valor:.2f} e de qual cartao?\n" + _listar_cartoes(db)
 
     from services.card_limit_service import CardLimitService
@@ -318,7 +363,7 @@ def _tratar_saldo_conta(db, chat_id, text):
     db.commit()
 
     resumo = MonthlyService(db).salvar_resumo_mes(mes_ref)
-    _clear_session(chat_id)
+    _clear_session(chat_id, db)
     from services.advisor_service import AdvisorService
     uso_saldo = AdvisorService(db).saldo_utilizacao()
 
@@ -357,8 +402,7 @@ def _tratar_desejo(db, chat_id, text):
         except Exception as e:
             print(f"Aviso: nao consegui buscar preco real do desejo: {e}")
 
-        s = _session(chat_id)
-        s.update({"awaiting": "valor_desejo", "nome_desejo": nome})
+        _set_session(db, chat_id, {"awaiting": "valor_desejo", "nome_desejo": nome})
         return f"Entendi o desejo: {nome}. Nao consegui buscar preco real agora. Qual valor devo considerar?"
 
     return _salvar_desejo(db, nome, valor)
@@ -381,8 +425,7 @@ def _tratar_lancamento(db, chat_id, text):
     descricao = _limpar_nome(text)
     forma = _forma_pagamento(text)
     if not forma:
-        s = _session(chat_id)
-        s.update({
+        _set_session(db, chat_id, {
             "awaiting": "forma_pagamento_lancamento",
             "descricao": descricao,
             "valor": valor,
@@ -415,6 +458,90 @@ def _tratar_saldo_utilizacao(db, chat_id, text):
 
     from services.advisor_service import AdvisorService
     return AdvisorService(db).saldo_utilizacao()["mensagem"]
+
+
+def _tratar_decisao_compra(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = [
+        "posso comprar",
+        "vale a pena comprar",
+        "devo comprar",
+        "analisa compra",
+        "analisar compra",
+        "compra a vista",
+        "comprar a vista",
+        "parcelar",
+    ]
+    if not any(t in msg for t in gatilhos):
+        return None
+    if any(t in msg for t in ["casa", "milhao", "milhoes", "patrimonio"]):
+        return None
+
+    produto = _limpar_nome(text)
+    valor = _extrair_valor(text)
+    parcelas = _extrair_parcelas(text)
+    salvar = any(t in msg for t in ["lista de desejo", "lista de desejos", "salvar", "guardar"])
+
+    from services.advisor_service import AdvisorService
+    result = AdvisorService(db).decisao_compra(produto, valor, parcelas, salvar)
+    return result["mensagem"]
+
+
+def _tratar_meta_patrimonial(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = ["casa", "milhao", "milhoes", "patrimonio", "meta grande", "prosperar"]
+    if not any(t in msg for t in gatilhos):
+        return None
+    if any(t in msg for t in ["comprei", "gastei", "paguei"]):
+        return None
+
+    valor_meta = _extrair_valor_meta(text) or 1000000
+    prazo_match = re.search(r"(\d+)\s+anos?", msg)
+    prazo_anos = int(prazo_match.group(1)) if prazo_match else 10
+
+    from services.ai_service import FinancialTools
+    tools = FinancialTools(db)
+    meta = tools.planejar_meta_patrimonial(valor_meta, prazo_anos)
+    visao = tools.get_visao_patrimonial()
+
+    linhas = [
+        "Aurum Capital - plano de meta patrimonial",
+        "",
+        f"Meta: R$ {meta['valor_meta']:.2f} em {meta['prazo_anos']} anos",
+        f"Aporte necessario: R$ {meta['aporte_mensal_necessario']:.2f}/mes",
+        f"Aporte possivel pelo orcamento atual: R$ {meta['aporte_mensal_sugerido_pelo_orcamento']:.2f}/mes",
+        f"Gap mensal: R$ {meta['gap_mensal']:.2f}",
+        f"Leitura: {meta['leitura']}",
+        "",
+        f"Fase atual: {visao.get('fase')} | {visao.get('foco')}",
+        "",
+        "Caminho pratico:",
+        "- Fechar saldo positivo todo mes.",
+        "- Quitar dividas antes de acelerar risco.",
+        "- Montar reserva e depois investir com diversificacao.",
+        "- Se o gap for alto, atacar renda extra e prazo antes de desejos caros.",
+    ]
+    return "\n".join(linhas)
+
+
+def _tratar_fechamento_mensal(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = ["fechamento do mes", "fechar mes", "fechamento mensal", "como fechei o mes"]
+    if not any(t in msg for t in gatilhos):
+        return None
+
+    from services.advisor_service import AdvisorService
+    return AdvisorService(db).fechamento_mensal()["mensagem"]
+
+
+def _tratar_radar_desejos(db, chat_id, text):
+    msg = _normalizar(text)
+    gatilhos = ["radar de desejos", "queda de preco", "preco caiu", "oportunidade de compra", "revisar desejos"]
+    if not any(t in msg for t in gatilhos):
+        return None
+
+    from services.wishlist_advisor_service import WishlistAdvisorService
+    return WishlistAdvisorService(db).radar_oportunidades()["mensagem"]
 
 
 def _tratar_analise_mercado(db, chat_id, text):
@@ -455,7 +582,20 @@ def _tratar_checkup_analista(db, chat_id, text):
 
 
 def tratar_integracoes(db, chat_id, text):
-    for handler in [_tratar_pendencia, _tratar_saldo_conta, _tratar_limite_cartao, _tratar_saldo_utilizacao, _tratar_desejo, _tratar_lancamento, _tratar_analise_mercado, _tratar_checkup_analista]:
+    for handler in [
+        _tratar_pendencia,
+        _tratar_saldo_conta,
+        _tratar_limite_cartao,
+        _tratar_saldo_utilizacao,
+        _tratar_decisao_compra,
+        _tratar_meta_patrimonial,
+        _tratar_fechamento_mensal,
+        _tratar_radar_desejos,
+        _tratar_desejo,
+        _tratar_lancamento,
+        _tratar_analise_mercado,
+        _tratar_checkup_analista,
+    ]:
         resposta = handler(db, chat_id, text)
         if resposta:
             return resposta

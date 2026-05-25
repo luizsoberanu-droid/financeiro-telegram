@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 
 class AdvisorService:
@@ -261,5 +262,182 @@ class AdvisorService:
             "saldo_utilizacao": uso_saldo,
             "desejos_priorizados": desejos_linhas,
             "proximas_acoes": proximas_acoes,
+            "mensagem": "\n".join(linhas),
+        }
+
+    def decisao_compra(self, produto, valor=None, parcelas=None, salvar_desejo=False):
+        from models.database import Desejo
+        from services.ai_service import FinancialTools
+        from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
+
+        produto = (produto or "").strip() or "item"
+        valor = float(valor or 0)
+        parcelas = int(parcelas or 1)
+        parcelas = max(parcelas, 1)
+
+        wishlist = WishlistAdvisorService(self.db)
+        tools = FinancialTools(self.db)
+
+        if valor <= 0:
+            diag = wishlist.diagnostico_compra(produto, None)
+            valor = float(diag.get("preco") or 0)
+        else:
+            diag = wishlist.diagnostico_compra(produto, valor)
+
+        analise_parcelas = tools.analisar_compra_parcelada(produto, valor, parcelas) if valor > 0 else None
+
+        desejo = None
+        if salvar_desejo and valor > 0:
+            desejo = self.db.query(Desejo).filter(Desejo.nome.ilike(produto)).first()
+            if not desejo:
+                desejo = Desejo(nome=produto, valor=valor, prioridade=classificar_prioridade(produto))
+                self.db.add(desejo)
+            else:
+                desejo.valor = valor
+                desejo.prioridade = desejo.prioridade or classificar_prioridade(produto)
+            self.db.commit()
+
+        decisao = diag.get("decisao", "AGUARDAR_PLANEJANDO")
+        if valor <= 0:
+            titulo = "PRECISO DO VALOR"
+        elif decisao in ["PODE_PLANEJAR", "PARCELADO_COM_CONTROLE"]:
+            titulo = "PODE PLANEJAR COM CONTROLE"
+        else:
+            titulo = "NAO COMPRAR AGORA"
+
+        linhas = [
+            "Aurum Capital - central de decisao de compra",
+            "",
+            f"Decisao: {titulo}",
+            f"Item: {produto}",
+            f"Valor analisado: {self._moeda(valor)}",
+            f"Prioridade: {(diag.get('prioridade') or 'media').upper()}",
+            f"Melhor caminho: {diag.get('melhor_caminho')}",
+            f"Quando comprar: {diag.get('quando_comprar')}",
+        ]
+
+        if analise_parcelas:
+            linhas += [
+                "",
+                "Parcelamento:",
+                f"- Simulacao: {parcelas}x de {self._moeda(analise_parcelas.get('valor_parcela'))}",
+                f"- Fatura estimada com compra: {self._moeda(analise_parcelas.get('fatura_mes_estimada_com_compra'))}",
+                f"- Limite seguro da parcela: {self._moeda(analise_parcelas.get('limite_parcela_segura'))}",
+                f"- Recomendacao tecnica: {analise_parcelas.get('recomendacao')}",
+            ]
+
+        motivos = list(diag.get("motivos") or [])
+        if analise_parcelas:
+            motivos.extend(analise_parcelas.get("motivos") or [])
+        if motivos:
+            linhas.append("")
+            linhas.append("Motivos:")
+            linhas.extend([f"- {m}" for m in motivos[:6]])
+
+        if desejo:
+            linhas.append("")
+            linhas.append("Item salvo/atualizado na lista de desejos para eu acompanhar o preco e te avisar no momento certo.")
+
+        linhas.append("")
+        linhas.append("Proximo passo: se quiser, diga 'salvar esse item na lista de desejos' ou me mande outro valor/parcelas para simular.")
+
+        return {
+            "ok": True,
+            "produto": produto,
+            "valor": round(valor, 2),
+            "parcelas": parcelas,
+            "decisao": titulo,
+            "diagnostico": diag,
+            "analise_parcelas": analise_parcelas,
+            "salvo_desejo": bool(desejo),
+            "mensagem": "\n".join(linhas),
+        }
+
+    def fechamento_mensal(self, mes_ref=None):
+        from services.monthly_service import MonthlyService
+
+        monthly = MonthlyService(self.db)
+        mes_ref = mes_ref or datetime.now().strftime("%Y-%m")
+        resumo = monthly.salvar_resumo_mes(mes_ref)
+
+        mes_anterior = monthly._mes_anterior(mes_ref)
+        historico = {row["mes_ref"]: row for row in monthly.historico(6)}
+        anterior = historico.get(mes_anterior)
+
+        saldo_final = float(resumo.get("saldo_final") or 0)
+        movimento = float(resumo.get("movimento_mes") or 0)
+        divida = float(resumo.get("divida_ajustada") or 0)
+
+        comparativos = []
+        if anterior:
+            delta_saldo = saldo_final - float(anterior.get("saldo_final") or 0)
+            delta_gastos = float(resumo.get("gastos_mes") or 0) - float(anterior.get("gastos_mes") or 0)
+            delta_divida = divida - float(anterior.get("divida_ajustada") or 0)
+            comparativos = [
+                f"Saldo final vs mes anterior: {self._moeda(delta_saldo)}",
+                f"Gastos vs mes anterior: {self._moeda(delta_gastos)}",
+                f"Divida ajustada vs mes anterior: {self._moeda(delta_divida)}",
+            ]
+        else:
+            comparativos = ["Ainda nao ha mes anterior salvo para comparar. Este fechamento vira a nova base."]
+
+        if saldo_final < 0:
+            decisao = "Mes fechou em risco. Prioridade total: recompor saldo e congelar desejos."
+        elif divida > 0:
+            decisao = "Mes fechou positivo, mas ainda existe divida. Direcione a sobra para reduzir pendencias."
+        elif movimento > 0:
+            decisao = "Mes fechou saudavel. Pode separar aporte para reserva/investimento antes de liberar desejos."
+        else:
+            decisao = "Mes ficou apertado. Ajuste limites antes de assumir novas parcelas."
+
+        uso_saldo = self.saldo_utilizacao()
+        ranking = []
+        try:
+            from services.wishlist_advisor_service import WishlistAdvisorService
+            ranking = WishlistAdvisorService(self.db).ranking_inteligente(5)
+        except Exception:
+            ranking = []
+
+        linhas = [
+            "Aurum Capital - fechamento mensal",
+            "",
+            f"Mes: {mes_ref}",
+            f"Decisao: {decisao}",
+            "",
+            "Resumo:",
+            f"- Saldo inicial: {self._moeda(resumo.get('saldo_inicial'))}",
+            f"- Receita total: {self._moeda(resumo.get('receita_total'))}",
+            f"- Contas pendentes: {self._moeda(resumo.get('contas_pendentes'))}",
+            f"- Gastos do mes: {self._moeda(resumo.get('gastos_mes'))}",
+            f"- Parcelas do mes: {self._moeda(resumo.get('parcelas_mes'))}",
+            f"- Movimento do mes: {self._moeda(movimento)}",
+            f"- Saldo final: {self._moeda(saldo_final)}",
+            f"- Divida ajustada: {self._moeda(divida)}",
+            "",
+            "Comparativo:",
+            *[f"- {c}" for c in comparativos],
+            "",
+            "Uso seguro daqui para frente:",
+            f"- {uso_saldo.get('mensagem_curta')}",
+            f"- {uso_saldo.get('orientacao')}",
+        ]
+
+        if ranking:
+            linhas += [
+                "",
+                "Desejos para revisar no proximo mes:",
+                *[
+                    f"- {item['nome']}: {item['decisao']} | {item['melhor_caminho']}"
+                    for item in ranking[:5]
+                ],
+            ]
+
+        return {
+            "ok": True,
+            "mes_ref": mes_ref,
+            "resumo": resumo,
+            "comparativos": comparativos,
+            "decisao": decisao,
+            "ranking_desejos": ranking,
             "mensagem": "\n".join(linhas),
         }
