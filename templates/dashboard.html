@@ -2387,9 +2387,14 @@ async function loadDesejos() {
             }
 
             var ordem = { alta: 1, media: 2, média: 2, baixa: 3 };
+            var urgOrdem = { critica: 1, alta: 2, media: 3, normal: 4, baixa: 5 };
             var itens = res.desejos.slice().sort(function(a, b) {
-                return (ordem[String(a.prioridade || 'media').toLowerCase()] || 2) -
-                       (ordem[String(b.prioridade || 'media').toLowerCase()] || 2);
+                var pa = ordem[String(a.prioridade || 'media').toLowerCase()] || 2;
+                var pb = ordem[String(b.prioridade || 'media').toLowerCase()] || 2;
+                if (pa !== pb) return pa - pb;
+                var ua = urgOrdem[String(a.urgencia || 'normal').toLowerCase()] || 4;
+                var ub = urgOrdem[String(b.urgencia || 'normal').toLowerCase()] || 4;
+                return ua - ub;
             });
 
             var html = '<p><b>Análise da IA:</b> a compra deve respeitar prioridade, saldo, dívida, faturas futuras e reserva.</p>';

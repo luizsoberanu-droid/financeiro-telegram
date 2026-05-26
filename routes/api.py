@@ -789,10 +789,9 @@ def api_list_desejos():
     db = get_db_session()
     try:
         from models.database import Desejo
-        rank = {"alta": 1, "media": 2, "média": 2, "baixa": 3}
-        urg_rank = {"critica": 0, "alta": 1, "media": 2, "normal": 3, "baixa": 4}
         desejos = db.query(Desejo).all()
-        desejos.sort(key=lambda d: (urg_rank.get((d.urgencia or "normal").lower(), 3), rank.get((d.prioridade or "media").lower(), 2), d.valor or 0, d.created_at or datetime.max))
+        from services.wishlist_advisor_service import chave_prioridade_desejo
+        desejos.sort(key=lambda d: chave_prioridade_desejo(d.nome, d.prioridade, d.urgencia, d.valor, d.created_at))
         return jsonify([{
             "id": d.id,
             "nome": d.nome,
@@ -828,7 +827,7 @@ def api_add_desejo():
     try:
         p = request.get_json() or {}
         from models.database import Desejo
-        from services.wishlist_advisor_service import WishlistAdvisorService, buscar_preco_mercado_livre
+        from services.wishlist_advisor_service import WishlistAdvisorService, buscar_preco_mercado_livre, normalizar_prioridade
 
         valor = p.get("valor", p.get("preco", None))
         prioridade = p.get("prioridade", p.get("categoria", "media"))
@@ -838,10 +837,7 @@ def api_add_desejo():
         parcelas_planejadas = int(p.get("parcelas_planejadas") or p.get("parcelas") or 0)
         preco_info = None
 
-        prioridade = str(prioridade or "media").lower()
-        prioridade = {"3": "alta", "2": "media", "1": "baixa", "urgente": "alta"}.get(prioridade, prioridade)
-        if prioridade not in ["alta", "media", "baixa"]:
-            prioridade = "media"
+        prioridade = normalizar_prioridade(prioridade, p.get("nome", ""))
         urgencia = {"urgente": "alta", "crítica": "critica"}.get(urgencia, urgencia)
         if urgencia not in ["critica", "alta", "media", "normal", "baixa"]:
             urgencia = "normal"
@@ -1089,7 +1085,7 @@ def api_analise_desejos():
     db = get_db_session()
     try:
         from models.database import Desejo
-        from services.wishlist_advisor_service import WishlistAdvisorService
+        from services.wishlist_advisor_service import WishlistAdvisorService, chave_prioridade_desejo
 
         svc = WishlistAdvisorService(db)
         desejos = db.query(Desejo).order_by(Desejo.created_at.desc()).all()
@@ -1123,6 +1119,12 @@ def api_analise_desejos():
                 "analise": texto
             })
 
+        rows.sort(key=lambda item: chave_prioridade_desejo(
+            item["nome"],
+            item.get("prioridade"),
+            item.get("urgencia"),
+            item.get("valor"),
+        ))
         return jsonify({"ok": True, "desejos": rows})
     finally:
         db.close()

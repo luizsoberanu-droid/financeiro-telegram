@@ -147,7 +147,7 @@ class AdvisorService:
         from models.database import Desejo
         from services.ai_service import FinancialTools
         from services.card_limit_service import CardLimitService
-        from services.wishlist_advisor_service import WishlistAdvisorService
+        from services.wishlist_advisor_service import WishlistAdvisorService, chave_prioridade_desejo
 
         tools = FinancialTools(self.db)
         saldo = tools.get_saldo_atual()
@@ -180,7 +180,7 @@ class AdvisorService:
         desejos = [
             d for d in self.db.query(Desejo).filter(Desejo.comprado == False).all()
         ]
-        desejos.sort(key=lambda d: (prioridade_rank.get((d.prioridade or "media").lower(), 2), d.valor or 0))
+        desejos.sort(key=lambda d: chave_prioridade_desejo(d.nome, d.prioridade, d.urgencia, d.valor, d.created_at))
 
         desejos_linhas = []
         necessidades_casa = []

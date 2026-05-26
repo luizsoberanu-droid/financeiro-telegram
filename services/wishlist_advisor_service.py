@@ -22,6 +22,9 @@ PRIORIDADES = {
     ],
 }
 
+PRIORIDADE_RANK = {"alta": 0, "media": 1, "média": 1, "baixa": 2}
+URGENCIA_RANK = {"critica": 0, "alta": 1, "media": 2, "normal": 3, "baixa": 4}
+
 def limpar_query(texto):
     t = (texto or "").lower().strip()
     t = re.sub(r"^(quero comprar|comprar|desejo comprar|analisa compra de|analisar compra de)\s+", "", t)
@@ -34,6 +37,25 @@ def classificar_prioridade(nome):
         if any(p in n for p in palavras):
             return prioridade
     return "media"
+
+def normalizar_prioridade(prioridade, nome=None):
+    p = (prioridade or "").lower().strip()
+    p = {"3": "alta", "2": "media", "1": "baixa", "urgente": "alta", "média": "media"}.get(p, p)
+    if p not in ["alta", "media", "baixa"]:
+        p = classificar_prioridade(nome or "")
+    return p if p in ["alta", "media", "baixa"] else "media"
+
+def chave_prioridade_desejo(nome, prioridade=None, urgencia=None, valor=0, created_at=None):
+    """Ordena por importancia real; urgencia so desempata dentro da mesma prioridade."""
+    prioridade_norm = normalizar_prioridade(prioridade, nome)
+    urgencia_norm = (urgencia or "normal").lower().strip()
+    urgencia_norm = {"urgente": "alta", "crítica": "critica", "critica": "critica"}.get(urgencia_norm, urgencia_norm)
+    return (
+        PRIORIDADE_RANK.get(prioridade_norm, 1),
+        URGENCIA_RANK.get(urgencia_norm, 3),
+        float(valor or 0),
+        created_at or datetime.max,
+    )
 
 def explicar_prioridade(nome, prioridade):
     n = (nome or "").lower()
@@ -604,8 +626,6 @@ class WishlistAdvisorService:
     def ranking_inteligente(self, limite=10):
         from models.database import Desejo
 
-        urgencia_rank = {"critica": 0, "alta": 1, "media": 2, "normal": 3, "baixa": 4}
-        prioridade_rank = {"alta": 1, "media": 2, "baixa": 3}
         decisao_rank = {
             "PODE_PLANEJAR": 1,
             "PARCELADO_COM_CONTROLE": 2,
@@ -618,12 +638,12 @@ class WishlistAdvisorService:
         rows = []
         for desejo in desejos:
             diag = self.diagnostico_compra(desejo.nome, desejo.valor or 0)
-            prioridade = (desejo.prioridade or diag.get("prioridade") or "media").lower()
+            prioridade = normalizar_prioridade(desejo.prioridade or diag.get("prioridade"), desejo.nome)
             urgencia = self._normalizar_urgencia(getattr(desejo, "urgencia", "normal"))
             decisao = diag.get("decisao") or "AGUARDAR_PLANEJANDO"
             score = (
-                urgencia_rank.get(urgencia, 3) * 1000
-                + prioridade_rank.get(prioridade, 2) * 100
+                PRIORIDADE_RANK.get(prioridade, 1) * 1000
+                + URGENCIA_RANK.get(urgencia, 3) * 100
                 + decisao_rank.get(decisao, 4) * 10
                 + min(float(desejo.valor or 0) / 1000, 9)
             )

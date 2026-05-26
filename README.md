@@ -361,6 +361,7 @@ Novidades:
 - Cada desejo pode guardar urgencia, motivo, prazo opcional e plano de acao.
 - Exemplo no Telegram: `adiciona geladeira de R$ 2500 urgente na lista de desejos`.
 - A IA nao usa urgencia como autorizacao automatica: se houver saldo negativo, divida ativa ou reserva fraca, ela trava a compra e monta plano para recuperar caixa, quitar dividas e guardar dinheiro antes.
+- A ordenacao respeita prioridade real: geladeira, fogao, saude, roupa basica e trabalho ficam acima de iPhone, lazer e status; urgencia so desempata itens do mesmo nivel.
 - O painel de desejos mostra urgencia, forma recomendada, parcelamento planejado e botao `Plano IA`.
 
 Endpoints:
