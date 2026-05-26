@@ -358,10 +358,10 @@ Endpoint:
 ## Aurum Capital v11 - Plano de compra na lista de desejos
 
 Novidades:
-- Cada desejo pode guardar urgencia, motivo, prazo alvo e plano de acao.
-- Exemplo no Telegram: `adiciona geladeira de R$ 2500 urgente na lista de desejos para comprar daqui 2 meses parcelado`.
-- A IA calcula se a urgencia justifica parcelar, qual parcela fica segura, quanto guardar antes da compra e quais travas seguir.
-- O painel de desejos mostra urgencia, prazo, forma recomendada, parcelamento planejado e botao `Plano 2m`.
+- Cada desejo pode guardar urgencia, motivo, prazo opcional e plano de acao.
+- Exemplo no Telegram: `adiciona geladeira de R$ 2500 urgente na lista de desejos`.
+- A IA nao usa urgencia como autorizacao automatica: se houver saldo negativo, divida ativa ou reserva fraca, ela trava a compra e monta plano para recuperar caixa, quitar dividas e guardar dinheiro antes.
+- O painel de desejos mostra urgencia, forma recomendada, parcelamento planejado e botao `Plano IA`.
 
 Endpoints:
 - `POST /api/desejo`

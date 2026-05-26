@@ -224,7 +224,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "decidir_compra",
-            "description": "Central de decisao: decide se um produto pode ser comprado agora, a vista, parcelado ou se deve esperar. Pode salvar na lista de desejos com urgencia, prazo alvo e plano de acao.",
+            "description": "Central de decisao: decide se um produto pode ser comprado agora, a vista, parcelado ou se deve esperar. Pode salvar na lista de desejos com urgencia, prazo opcional e plano de acao financeiro.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -233,7 +233,7 @@ TOOLS = [
                     "parcelas": {"type": "integer", "description": "Quantidade de parcelas desejada"},
                     "salvar_desejo": {"type": "boolean", "description": "Se deve salvar/atualizar o produto na lista de desejos"},
                     "urgencia": {"type": "string", "description": "Urgencia do item: normal, alta ou critica"},
-                    "prazo_compra_meses": {"type": "integer", "description": "Prazo alvo para compra. Ex: 2 para comprar daqui 2 meses"},
+                    "prazo_compra_meses": {"type": "integer", "description": "Prazo alvo opcional. Use somente se o usuario informar; se nao informar, deixe a IA decidir pela situacao financeira."},
                     "motivo_urgencia": {"type": "string", "description": "Por que o item e urgente ou importante"}
                 },
                 "required": ["produto"]
@@ -306,7 +306,7 @@ SYSTEM_PROMPT = """Voce e o Aurum Capital, analista patrimonial e estrategista f
 12. Para investimentos, explique risco, prazo, diversificacao e liquidez. NUNCA prometa retorno garantido.
 13. Quando falar de acoes, fundos ou ETFs, use o radar de mercado quando possivel e trate como lista de estudo, nao ordem de compra.
 14. Para metas grandes, como casa de R$ 1.000.000, transforme sonho em plano: primeiro emergencia, roupas/necessidades, veiculo e estabilidade; depois entrada, documentos, carta de credito/consorcio, financiamento ou compra a vista.
-15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar. Se o item for urgente, salve urgencia, prazo alvo e plano de acao.
+15. Para compras no cartao ou lista de desejos, simule parcela, faturas futuras e impacto no plano de prosperidade antes de liberar. Urgencia nao autoriza compra: se houver saldo negativo, divida ativa ou reserva fraca, diga NAO, salve o item e monte plano para recompor saldo, quitar divida e formar reserva antes de comprar. So use prazo alvo quando o usuario informar.
 16. Quando o assunto for cartao de credito, consulte limite real, limite seguro mensal e uso atual antes de liberar gasto.
 17. Para itens da lista de desejos sem preco informado, nao chute: use busca real de preco/mercado quando a ferramenta estiver disponivel e cite a fonte.
 18. Seja proativo com sazonalidade: frio, calor, chuva e troca de estacao podem virar sugestoes de lista de desejos, mas sempre conferindo orcamento antes.

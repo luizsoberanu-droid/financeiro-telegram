@@ -185,23 +185,30 @@ class WishlistAdvisorService:
         valor = float(getattr(desejo, "valor", 0) or 0)
         prioridade = (getattr(desejo, "prioridade", None) or classificar_prioridade(nome) or "media").lower()
         urgencia = self._normalizar_urgencia(urgencia or getattr(desejo, "urgencia", None))
-        if urgencia in ["alta", "critica"] and prioridade not in ["alta"]:
-            prioridade_operacional = "alta"
-        else:
-            prioridade_operacional = prioridade
+        prioridade_operacional = prioridade
 
-        prazo_meses = int(prazo_meses or getattr(desejo, "prazo_compra_meses", 0) or (2 if urgencia in ["alta", "critica"] else 1))
-        prazo_meses = max(min(prazo_meses, 60), 1)
+        prazo_meses = int(prazo_meses or 0)
+        prazo_meses = max(min(prazo_meses, 60), 0)
+        prazo_calculo = max(prazo_meses, 1)
         parcelas_pedidas = int(parcelas or getattr(desejo, "parcelas_planejadas", 0) or 0)
         if parcelas_pedidas < 0:
             parcelas_pedidas = 0
 
         diag = self.diagnostico_compra(nome, valor)
         saldo, dividas = self._dados_financeiros()
+        from services.ai_service import FinancialTools
+        reserva = FinancialTools(self.db).get_reserva_status()
         renda = float(saldo.get("receita_total") or 0)
         saldo_proj = float(saldo.get("saldo_projetado", saldo.get("saldo_final", 0)) or 0)
         divida_total = float(dividas.get("total_divida") or 0)
-        capacidade_guardar = max(min(max(saldo_proj, 0) * 0.70, renda * 0.12), renda * 0.05, 50)
+        reserva_atual = float(reserva.get("atual") or 0)
+        reserva_meta = float(reserva.get("meta") or 0)
+        reserva_faltante = float(reserva.get("faltante") or 0)
+        saldo_livre = max(saldo_proj, 0)
+        teto_por_renda = renda * 0.12 if renda > 0 else saldo_livre
+        capacidade_guardar = max(min(saldo_livre * 0.70, teto_por_renda), 0)
+        if saldo_livre > 0 and capacidade_guardar <= 0:
+            capacidade_guardar = min(saldo_livre, 50)
 
         limites = CardLimitService(self.db).resumo_limites()
         disponivel_seguro_mes = float(limites.get("disponivel_seguro_mes") or 0)
@@ -212,7 +219,7 @@ class WishlistAdvisorService:
         maior_fatura_futura = max(faturas.values()) if faturas else 0
 
         limite_parcela_segura = max(renda * 0.05, 100) if divida_total > 0 else max(renda * 0.08, 150)
-        if urgencia == "critica" and prioridade_operacional == "alta":
+        if urgencia == "critica" and prioridade_operacional == "alta" and saldo_proj > 0 and divida_total <= 0 and reserva_faltante <= 0:
             limite_parcela_segura *= 1.10
 
         opcoes = []
@@ -238,9 +245,16 @@ class WishlistAdvisorService:
             if not escolhido:
                 escolhido = opcoes[0]
 
-        data_alvo = self._somar_meses(datetime.utcnow(), prazo_meses)
-        economia_avista = valor / prazo_meses if valor > 0 else 0
+        data_alvo = self._somar_meses(datetime.utcnow(), prazo_meses) if prazo_meses > 0 else None
+        economia_avista = valor / prazo_calculo if valor > 0 else 0
+        meses_para_juntar = max(math.ceil(max(valor - saldo_livre, 0) / max(capacidade_guardar, 1)), 1) if valor > 0 else 0
         bloqueios = []
+        criterios_liberacao = [
+            "saldo final projetado positivo",
+            "dividas quitadas ou com plano em dia",
+            "reserva minima em construcao sem ser sacrificada",
+            "parcela dentro do limite seguro do cartao",
+        ]
 
         if valor <= 0:
             status = "PRECISA_DE_VALOR"
@@ -248,44 +262,75 @@ class WishlistAdvisorService:
             decisao = "Informe o valor ou deixe a busca de preco rodar antes de planejar a compra."
             aporte_pre_compra = 0
             colchao = 0
-        elif divida_total > 0 and prioridade_operacional != "alta":
-            status = "ADIAR_ATE_DIVIDA_ALIVIAR"
+        elif saldo_proj <= 0:
+            status = "PLANO_DE_RECUPERACAO"
             forma = "esperar"
-            decisao = "Nao recomendo comprar em 2 meses: existe divida ativa e o item nao e essencial."
-            aporte_pre_compra = min(capacidade_guardar, valor)
+            decisao = (
+                "Nao vamos comprar agora. Voce esta sem folga de caixa; a prioridade e recompor o saldo, "
+                "pagar o essencial e impedir nova parcela."
+            )
+            aporte_pre_compra = 0
             colchao = 0
-            bloqueios.append("Reduzir dividas antes de assumir nova parcela.")
-        elif economia_avista <= capacidade_guardar and divida_total <= 0:
+            bloqueios.append(f"Saldo projetado sem folga: {self._moeda(saldo_proj)}.")
+        elif divida_total > 0:
+            status = "QUITAR_DIVIDAS_ANTES"
+            forma = "esperar"
+            decisao = (
+                "Nao vamos comprar agora. Primeiro vem quitar ou reduzir dividas; depois montar dinheiro guardado. "
+                "O item fica na lista para acompanhar preco, sem compromisso de compra."
+            )
+            aporte_pre_compra = 0
+            colchao = 0
+            bloqueios.append(f"Existe divida ativa de {self._moeda(divida_total)}.")
+        elif reserva_faltante > 0:
+            status = "MONTAR_RESERVA_ANTES"
+            forma = "esperar"
+            decisao = (
+                "Ainda nao libero essa compra. Antes, precisamos ter dinheiro guardado para emergencia; "
+                "sem isso, o desejo vira risco financeiro."
+            )
+            aporte_pre_compra = 0
+            colchao = 0
+            bloqueios.append(f"Reserva incompleta: falta {self._moeda(reserva_faltante)}.")
+        elif prazo_meses > 0 and economia_avista <= capacidade_guardar:
             status = "COMPRAR_A_VISTA_NO_PRAZO"
             forma = "a_vista"
             decisao = f"Comprar a vista no prazo alvo, guardando {self._moeda(economia_avista)}/mes."
             aporte_pre_compra = economia_avista
             colchao = valor
-        elif escolhido and urgencia in ["alta", "critica"]:
-            status = "COMPRAR_NO_PRAZO_PARCELADO"
+        elif valor <= saldo_livre and prioridade_operacional == "alta":
+            status = "COMPRA_AVISTA_LIBERADA"
+            forma = "a_vista"
+            decisao = "Pode comprar a vista somente se isso nao atrasar conta essencial nem reduzir sua reserva."
+            aporte_pre_compra = 0
+            colchao = valor
+        elif escolhido and urgencia in ["alta", "critica"] and prioridade_operacional == "alta":
+            status = "PARCELADO_ESSENCIAL_COM_CONTROLE"
             forma = "parcelado"
             colchao = escolhido["valor_parcela"] * 2
-            aporte_pre_compra = colchao / prazo_meses
+            aporte_pre_compra = colchao / prazo_calculo
             decisao = (
-                f"Por ser urgente, o melhor caminho e comprar no alvo de {prazo_meses} mes(es) "
-                f"parcelando em {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}, "
-                "desde que a fatura continue dentro do limite seguro."
+                f"So por ser item essencial, o caminho possivel e parcelar em {escolhido['parcelas']}x de "
+                f"{self._moeda(escolhido['valor_parcela'])}, mantendo duas parcelas guardadas antes de executar."
             )
         elif escolhido:
             status = "PARCELADO_COM_CONTROLE"
             forma = "parcelado"
             colchao = escolhido["valor_parcela"] * 2
-            aporte_pre_compra = colchao / prazo_meses
+            aporte_pre_compra = colchao / prazo_calculo
             decisao = (
                 f"Compra parcelada possivel com controle: {escolhido['parcelas']}x de "
                 f"{self._moeda(escolhido['valor_parcela'])}."
             )
         else:
-            status = "REPLANEJAR"
+            status = "JUNTAR_ANTES_DE_COMPRAR"
             forma = "esperar"
             aporte_pre_compra = min(capacidade_guardar, valor)
             colchao = 0
-            decisao = "Ainda nao achei parcela segura. Reduza valor, aumente prazo ou espere mais folga."
+            decisao = (
+                f"Ainda nao libero compra. Melhor juntar por aproximadamente {meses_para_juntar} mes(es), "
+                "reavaliar preco e so executar com saldo positivo."
+            )
 
         if tem_limite_real and valor > maior_disponivel_real:
             bloqueios.append(f"O valor passa do maior limite real disponivel: {self._moeda(maior_disponivel_real)}.")
@@ -297,27 +342,66 @@ class WishlistAdvisorService:
             bloqueios.append("Recompor saldo antes de comprar.")
 
         acoes = []
-        if forma == "a_vista":
+        if status == "PLANO_DE_RECUPERACAO":
+            reduzir = abs(min(saldo_proj, 0))
+            acoes = [
+                "Hoje: congelar compras de desejo e usar dinheiro apenas para comida, transporte, contas e saude.",
+                f"Primeiro alvo: recuperar pelo menos {self._moeda(reduzir)} para voltar ao saldo positivo.",
+                "Depois: revisar dividas e reserva antes de voltar a falar em compra.",
+                "Item fica salvo apenas para monitorar preco e prioridade.",
+            ]
+        elif status == "QUITAR_DIVIDAS_ANTES":
+            meta_divida = float(dividas.get("meta_3_meses") or 0)
+            aporte_divida = min(max(capacidade_guardar, 0), meta_divida or divida_total)
+            acoes = [
+                f"Mes atual: direcionar {self._moeda(aporte_divida)} para dividas antes de qualquer desejo.",
+                "Negociar juros, quitar a menor/mais cara primeiro e nao abrir nova parcela.",
+                "Quando a divida estiver zerada ou controlada, revisar este item com o saldo real do mes.",
+                "Enquanto isso, manter o item na lista e acompanhar queda de preco.",
+            ]
+        elif status == "MONTAR_RESERVA_ANTES":
+            sugestao_reserva = float(reserva.get("sugestao_mensal") or 0)
+            aporte_reserva = min(max(capacidade_guardar, 0), sugestao_reserva or reserva_faltante)
+            acoes = [
+                f"Mes atual: guardar {self._moeda(aporte_reserva)} para reserva antes de desejo.",
+                f"Meta de reserva: sair de {self._moeda(reserva_atual)} para {self._moeda(reserva_meta)}.",
+                "Comprar somente necessidade real; conforto, lazer e status ficam pausados.",
+                "Reavaliar o item no fechamento mensal, com reserva evoluindo.",
+            ]
+        elif forma == "a_vista" and prazo_meses > 0:
             acoes = [
                 f"Mes 1: separar {self._moeda(aporte_pre_compra)} em um cofre do item e travar gastos extras.",
                 f"Mes {prazo_meses}: comprar somente se o preco continuar ate {self._moeda(valor)} e o saldo seguir positivo.",
                 "Depois da compra: recompor a reserva antes de liberar outro desejo grande.",
             ]
+        elif forma == "a_vista":
+            acoes = [
+                "Conferir contas do mes, fatura e reserva antes de pagar.",
+                "Comprar a vista apenas se o saldo final continuar positivo depois da compra.",
+                "Depois da compra: pausar novos desejos grandes ate o proximo fechamento.",
+            ]
         elif forma == "parcelado" and escolhido:
+            etapa_compra = (
+                f"Mes {prazo_meses}: revisar preco e limite; comprar em ate {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}."
+                if prazo_meses > 0 else
+                f"Quando os criterios forem cumpridos: comprar em ate {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}."
+            )
             acoes = [
                 f"Mes 1: separar {self._moeda(aporte_pre_compra)} para criar colchao de duas parcelas.",
-                f"Mes {prazo_meses}: revisar preco e limite; comprar em ate {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}.",
+                etapa_compra,
                 "Depois da compra: bloquear novos parcelamentos ate a fatura estabilizar.",
             ]
         else:
             acoes = [
-                f"Mes 1: guardar o maximo seguro, hoje estimado em {self._moeda(aporte_pre_compra)}.",
-                "Mes 2: reavaliar saldo, dividas, limite do cartao e buscar alternativa mais barata.",
-                "Se continuar inseguro, manter na lista e revisar no fechamento mensal.",
+                f"Guardar o maximo seguro, hoje estimado em {self._moeda(aporte_pre_compra)}.",
+                "Reavaliar saldo, dividas, reserva, limite do cartao e preco no fechamento mensal.",
+                "Se continuar inseguro, manter na lista e buscar alternativa mais barata.",
             ]
 
         if bloqueios:
             acoes.append("Trava de seguranca: " + " ".join(bloqueios[:3]))
+
+        parcelamento = escolhido if forma == "parcelado" else None
 
         linhas = [
             "Aurum Capital - plano de acao da lista de desejos",
@@ -325,7 +409,11 @@ class WishlistAdvisorService:
             f"Item: {nome}",
             f"Valor: {self._moeda(valor)}",
             f"Urgencia: {urgencia.upper()}",
-            f"Prazo alvo: {prazo_meses} mes(es) ({data_alvo.strftime('%d/%m/%Y')})",
+            (
+                f"Prazo alvo informado: {prazo_meses} mes(es) ({data_alvo.strftime('%d/%m/%Y')})"
+                if data_alvo else
+                "Prazo alvo: sem prazo fixo; liberar somente quando a base financeira estiver saudavel"
+            ),
             f"Decisao: {status}",
             f"Forma recomendada: {forma}",
             decisao,
@@ -334,17 +422,25 @@ class WishlistAdvisorService:
             f"- Guardar antes da compra: {self._moeda(aporte_pre_compra)}/mes",
             f"- Limite seguro de parcela: {self._moeda(limite_parcela_segura)}",
             f"- Saldo projetado atual: {self._moeda(saldo_proj)}",
+            f"- Divida ativa: {self._moeda(divida_total)}",
+            f"- Reserva: {self._moeda(reserva_atual)} de {self._moeda(reserva_meta)}",
             f"- Limite real disponivel no melhor cartao: {self._moeda(maior_disponivel_real)}",
         ]
-        if escolhido:
+        if parcelamento:
             linhas += [
-                f"- Parcelamento recomendado: {escolhido['parcelas']}x de {self._moeda(escolhido['valor_parcela'])}",
-                f"- Fatura estimada com o item: {self._moeda(escolhido['fatura_estimada'])}",
+                f"- Parcelamento recomendado: {parcelamento['parcelas']}x de {self._moeda(parcelamento['valor_parcela'])}",
+                f"- Fatura estimada com o item: {self._moeda(parcelamento['fatura_estimada'])}",
             ]
         linhas += ["", "Plano de acao:", *[f"- {a}" for a in acoes]]
         if motivo_urgencia:
             linhas += ["", f"Motivo da urgencia registrado: {motivo_urgencia}"]
-        linhas += ["", "Regra: urgencia permite planejar parcelado, mas nao permite furar saldo, limite real, divida e reserva."]
+        linhas += [
+            "",
+            "Criterios para liberar compra:",
+            *[f"- {c}" for c in criterios_liberacao],
+            "",
+            "Regra: urgencia nao e autorizacao de compra. Primeiro saldo positivo, dividas sob controle e dinheiro guardado.",
+        ]
 
         result = {
             "ok": True,
@@ -355,12 +451,12 @@ class WishlistAdvisorService:
             "urgencia": urgencia,
             "motivo_urgencia": motivo_urgencia or getattr(desejo, "motivo_urgencia", None),
             "prazo_compra_meses": prazo_meses,
-            "data_alvo_compra": data_alvo.isoformat(),
+            "data_alvo_compra": data_alvo.isoformat() if data_alvo else "",
             "status_plano": status,
             "decisao": decisao,
             "forma_recomendada": forma,
-            "parcelas_recomendadas": escolhido["parcelas"] if escolhido else None,
-            "valor_parcela_recomendado": escolhido["valor_parcela"] if escolhido else None,
+            "parcelas_recomendadas": parcelamento["parcelas"] if parcelamento else None,
+            "valor_parcela_recomendado": parcelamento["valor_parcela"] if parcelamento else None,
             "aporte_pre_compra_mensal": round(aporte_pre_compra, 2),
             "colchao_minimo_ate_compra": round(colchao, 2),
             "limite_parcela_segura": round(limite_parcela_segura, 2),
@@ -368,6 +464,15 @@ class WishlistAdvisorService:
             "maior_limite_real_cartao": round(maior_disponivel_real, 2),
             "bloqueios": bloqueios,
             "acoes": acoes,
+            "criterios_liberacao": criterios_liberacao,
+            "fundacao_financeira": {
+                "saldo_ok": saldo_proj > 0,
+                "dividas_ok": divida_total <= 0,
+                "reserva_ok": reserva_faltante <= 0,
+                "saldo_projetado": round(saldo_proj, 2),
+                "divida_total": round(divida_total, 2),
+                "reserva_faltante": round(reserva_faltante, 2),
+            },
             "diagnostico": diag,
             "mensagem": "\n".join(linhas),
         }
@@ -378,8 +483,8 @@ class WishlistAdvisorService:
             desejo.prazo_compra_meses = prazo_meses
             desejo.data_alvo_compra = data_alvo
             desejo.forma_pagamento_planejada = forma
-            desejo.parcelas_planejadas = escolhido["parcelas"] if escolhido else 0
-            desejo.valor_parcela_planejada = escolhido["valor_parcela"] if escolhido else 0
+            desejo.parcelas_planejadas = parcelamento["parcelas"] if parcelamento else 0
+            desejo.valor_parcela_planejada = parcelamento["valor_parcela"] if parcelamento else 0
             desejo.plano_acao = result["mensagem"]
             desejo.updated_at = datetime.utcnow()
             self.db.commit()
@@ -652,9 +757,12 @@ class WishlistAdvisorService:
 
         preco = float(preco or 0)
         saldo, dividas = self._dados_financeiros()
+        from services.ai_service import FinancialTools
+        reserva = FinancialTools(self.db).get_reserva_status()
         saldo_proj = saldo.get("saldo_projetado", 0)
         divida = dividas.get("total_divida", 0)
         renda = saldo.get("receita_total", 0)
+        reserva_faltante = reserva.get("faltante", 0)
 
         faturas = self._faturas_futuras_cartao(6)
         maior_fatura_futura = max(faturas.values()) if faturas else 0
@@ -702,8 +810,25 @@ class WishlistAdvisorService:
                 "preco_fonte": preco_info.get("fonte") if preco_info else None,
             }
 
-        if divida > 0 and prioridade != "alta":
-            motivos.append("Existe divida ativa e o item nao e essencial.")
+        if saldo_proj <= 0:
+            motivos.append("Saldo projetado sem folga. Comprar agora aumenta risco de fechar o mes no negativo.")
+            return {
+                "produto": produto,
+                "preco": round(preco, 2),
+                "prioridade": prioridade,
+                "motivo_prioridade": motivo,
+                "decisao": "NAO_COMPRAR_AGORA",
+                "melhor_caminho": "Pausar a compra, recompor saldo e montar um plano de acao antes de assumir qualquer parcela.",
+                "quando_comprar": "Depois que o saldo final projetado voltar ao positivo e as contas essenciais estiverem cobertas.",
+                "pagamento_recomendado": "esperar",
+                "parcelas_recomendadas": None,
+                "valor_parcela_recomendado": None,
+                "motivos": motivos,
+                "preco_fonte": preco_info.get("fonte") if preco_info else "valor informado",
+            }
+
+        if divida > 0:
+            motivos.append("Existe divida ativa. A prioridade e reduzir divida antes de comprar desejo.")
             return {
                 "produto": produto,
                 "preco": round(preco, 2),
@@ -712,6 +837,23 @@ class WishlistAdvisorService:
                 "decisao": "NAO_COMPRAR_AGORA",
                 "melhor_caminho": "Guardar na lista, quitar/reduzir dividas e reavaliar antes de usar cartao.",
                 "quando_comprar": f"Reavaliar em aproximadamente {meses_para_reduzir_divida} mes(es), depois da fase de dividas aliviar.",
+                "pagamento_recomendado": "esperar",
+                "parcelas_recomendadas": None,
+                "valor_parcela_recomendado": None,
+                "motivos": motivos,
+                "preco_fonte": preco_info.get("fonte") if preco_info else "valor informado",
+            }
+
+        if reserva_faltante > 0:
+            motivos.append("Reserva de emergencia ainda incompleta. Sem dinheiro guardado, desejo vira risco.")
+            return {
+                "produto": produto,
+                "preco": round(preco, 2),
+                "prioridade": prioridade,
+                "motivo_prioridade": motivo,
+                "decisao": "NAO_COMPRAR_AGORA",
+                "melhor_caminho": "Manter o item na lista e direcionar a sobra para reserva antes de comprar.",
+                "quando_comprar": "Depois de evoluir a reserva e confirmar que a compra nao prejudica o caixa.",
                 "pagamento_recomendado": "esperar",
                 "parcelas_recomendadas": None,
                 "valor_parcela_recomendado": None,

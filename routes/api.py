@@ -834,7 +834,7 @@ def api_add_desejo():
         prioridade = p.get("prioridade", p.get("categoria", "media"))
         urgencia = str(p.get("urgencia") or "normal").lower()
         motivo_urgencia = p.get("motivo_urgencia")
-        prazo_compra_meses = int(p.get("prazo_compra_meses") or p.get("prazo_meses") or (2 if urgencia in ["alta", "critica", "urgente"] else 0) or 0)
+        prazo_compra_meses = int(p.get("prazo_compra_meses") or p.get("prazo_meses") or 0)
         parcelas_planejadas = int(p.get("parcelas_planejadas") or p.get("parcelas") or 0)
         preco_info = None
 
@@ -845,8 +845,6 @@ def api_add_desejo():
         urgencia = {"urgente": "alta", "crítica": "critica"}.get(urgencia, urgencia)
         if urgencia not in ["critica", "alta", "media", "normal", "baixa"]:
             urgencia = "normal"
-        if urgencia in ["critica", "alta"] and prioridade != "alta":
-            prioridade = "alta"
 
         if valor in [None, "", 0, "0"]:
             preco_info = buscar_preco_mercado_livre(p["nome"])
@@ -960,9 +958,9 @@ def api_plano_compra_desejo():
         desejo_id = p.get("id") or request.args.get("id")
         nome = p.get("nome") or p.get("produto") or request.args.get("nome") or request.args.get("produto")
         valor = p.get("valor") or request.args.get("valor")
-        urgencia = p.get("urgencia") or request.args.get("urgencia") or "normal"
+        urgencia = p.get("urgencia") or request.args.get("urgencia")
         motivo_urgencia = p.get("motivo_urgencia") or request.args.get("motivo_urgencia")
-        prazo_meses = p.get("prazo_compra_meses") or p.get("prazo_meses") or request.args.get("prazo_compra_meses") or request.args.get("prazo_meses") or 2
+        prazo_meses = p.get("prazo_compra_meses") or p.get("prazo_meses") or request.args.get("prazo_compra_meses") or request.args.get("prazo_meses") or 0
         parcelas = p.get("parcelas") or p.get("parcelas_planejadas") or request.args.get("parcelas") or request.args.get("parcelas_planejadas") or 0
         salvar = str(p.get("salvar", request.args.get("salvar", "true"))).lower() in ["true", "1", "sim", "yes"]
 

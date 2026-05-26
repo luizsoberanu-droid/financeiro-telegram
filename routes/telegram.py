@@ -114,8 +114,6 @@ def _extrair_prazo_compra_meses(text):
     match = re.search(r"(?:daqui|em|para)\s+(\d+)\s+mes", msg) or re.search(r"(\d+)\s+mes(?:es)?", msg)
     if match:
         return max(int(match.group(1)), 1)
-    if any(t in msg for t in ["urgente", "urgencia", "necessario", "preciso comprar"]):
-        return 2
     return 0
 
 
@@ -264,8 +262,6 @@ def _salvar_desejo(db, nome, valor, preco_info=None, urgencia="normal", prazo_me
     from services.wishlist_advisor_service import WishlistAdvisorService, classificar_prioridade
 
     prioridade = classificar_prioridade(nome)
-    if urgencia in ["alta", "critica"] and prioridade != "alta":
-        prioridade = "alta"
     existente = db.query(Desejo).filter(Desejo.nome.ilike(nome)).first()
     if existente:
         existente.valor = float(valor)
@@ -307,6 +303,11 @@ def _salvar_desejo(db, nome, valor, preco_info=None, urgencia="normal", prazo_me
     fonte = ""
     if preco_info and preco_info.get("ok"):
         fonte = f"\nFonte do preco: {preco_info['fonte']} - media de {preco_info['qtd']} anuncios."
+    prazo_txt = (
+        f"Prazo alvo: {plano_acao['prazo_compra_meses']} mes(es)\n"
+        if plano_acao.get("prazo_compra_meses") else
+        "Prazo alvo: sem prazo fixo; vamos liberar so quando saldo, dividas e reserva permitirem.\n"
+    )
     return (
         f"{acao}\n"
         f"Item: {nome}\n"
@@ -318,7 +319,7 @@ def _salvar_desejo(db, nome, valor, preco_info=None, urgencia="normal", prazo_me
         f"Quando comprar: {plano['quando_comprar']}\n\n"
         f"Plano de acao: {plano_acao['status_plano']}\n"
         f"Forma recomendada: {plano_acao['forma_recomendada']}\n"
-        f"Prazo alvo: {plano_acao['prazo_compra_meses']} mes(es)\n"
+        f"{prazo_txt}"
         f"Guardar antes da compra: R$ {plano_acao['aporte_pre_compra_mensal']:.2f}/mes\n"
         + (
             f"Parcelamento sugerido: {plano_acao['parcelas_recomendadas']}x de R$ {plano_acao['valor_parcela_recomendado']:.2f}\n\n"

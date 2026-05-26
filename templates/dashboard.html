@@ -1332,8 +1332,8 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Comprar em quantos meses?</label>
-                        <input type="number" id="desejo-prazo-meses" value="0" min="0" max="60" step="1" placeholder="Ex: 2">
+                        <label>Prazo desejado (opcional)</label>
+                        <input type="number" id="desejo-prazo-meses" value="0" min="0" max="60" step="1" placeholder="0 = IA decide">
                     </div>
                 </div>
                 <div class="form-group">
@@ -1387,8 +1387,8 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Plano para comprar em meses</label>
-                        <input type="number" id="decisao-prazo-meses" value="2" min="1" max="60">
+                        <label>Prazo desejado (opcional)</label>
+                        <input type="number" id="decisao-prazo-meses" value="0" min="0" max="60" placeholder="0 = IA decide">
                     </div>
                 </div>
                 <div class="form-group">
@@ -2334,17 +2334,23 @@ async function loadDesejos() {
             }
 
             var status = await api('/api/status');
+            var reservaStatus = await api('/api/reserva');
             var saldo = status ? ((status.saldo_final === undefined || status.saldo_final === null) ? (status.saldo_projetado || 0) : status.saldo_final) : 0;
             var divida = status ? (status.divida_total || 0) : 0;
+            var reservaFaltante = reservaStatus ? Number(reservaStatus.faltante || 0) : 0;
             var modo = status ? (status.modo_atual || 'recuperacao') : 'recuperacao';
 
             container.innerHTML = desejos.map(function(d) {
                 var prioridadeAlta = String(d.categoria || d.prioridade || '').toLowerCase().includes('alta');
-                var pode = saldo > d.preco && divida <= 0 && (modo !== 'recuperacao' || prioridadeAlta);
-                var proximo = saldo > 0 && !pode;
+                var baseFinanceiraOk = saldo > 0 && divida <= 0 && reservaFaltante <= 0;
+                var planoBloqueado = String(d.formaPlanejada || '').toLowerCase() === 'esperar';
+                var pode = baseFinanceiraOk && !planoBloqueado && saldo > d.preco && (modo !== 'recuperacao' || prioridadeAlta);
+                var proximo = baseFinanceiraOk && saldo > 0 && !pode && !planoBloqueado;
                 var cor = pode ? 'var(--success)' : proximo ? 'var(--warning)' : 'var(--danger)';
-                var texto = pode ? 'PODE PLANEJAR' : proximo ? 'Planejar depois' : 'Aguarde';
-                var diff = pode ? 'Sobra R$ ' + (saldo - d.preco).toFixed(2).replace('.', ',') : (saldo > 0 ? 'Falta R$ ' + (d.preco - saldo).toFixed(2).replace('.', ',') : 'Saldo negativo');
+                var texto = pode ? 'PODE PLANEJAR' : proximo ? 'Planejar depois' : 'Base primeiro';
+                var diff = pode ? 'Sobra R$ ' + (saldo - d.preco).toFixed(2).replace('.', ',') :
+                    (!baseFinanceiraOk || planoBloqueado ? 'Prioridade: saldo, dividas e reserva' :
+                    (saldo > 0 ? 'Falta R$ ' + (d.preco - saldo).toFixed(2).replace('.', ',') : 'Saldo negativo'));
 
                 return '<div class="wishlist-item">' +
                     '<div class="wishlist-info">' +
@@ -2356,14 +2362,14 @@ async function loadDesejos() {
                         (d.prazoCompraMeses ? '<p>Plano: comprar em ' + d.prazoCompraMeses + ' mes(es)' +
                             (d.formaPlanejada ? ' | ' + d.formaPlanejada : '') +
                             (d.parcelasPlanejadas ? ' | ' + d.parcelasPlanejadas + 'x de R$ ' + d.valorParcelaPlanejada.toFixed(2).replace('.', ',') : '') +
-                            '</p>' : '') +
+                            '</p>' : (d.formaPlanejada ? '<p>Plano: ' + d.formaPlanejada + ' conforme saldo/dividas/reserva</p>' : '')) +
                         (d.link ? '<p><a href="' + d.link + '" target="_blank" style="color:var(--accent)">Ver link</a></p>' : '') +
                     '</div>' +
                     '<div class="wishlist-status">' +
                         '<div style="font-weight:bold;color:' + cor + '">' + texto + '</div>' +
                         '<div style="font-size:0.85em;color:var(--text-dim);margin-top:5px;">' + diff + '</div>' +
                         '<button class="btn btn-sm btn-primary" style="margin-top:8px;" onclick="analisarDesejoIndividual(' + d.id + ')">IA</button> ' +
-                        '<button class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="planejarDesejoCompra(' + d.id + ')">Plano 2m</button> ' +
+                        '<button class="btn btn-sm btn-outline" style="margin-top:8px;" onclick="planejarDesejoCompra(' + d.id + ')">Plano IA</button> ' +
                         '<button class="btn btn-sm btn-danger" style="margin-top:8px;" onclick="deleteDesejo(' + d.id + ')">Remover</button>' +
                     '</div>' +
                 '</div>';
@@ -2409,7 +2415,7 @@ async function loadDesejos() {
             var parcelas = parseInt(document.getElementById('decisao-parcelas').value || '1', 10);
             var salvar = document.getElementById('decisao-salvar').value === 'true';
             var urgencia = document.getElementById('decisao-urgencia').value || 'normal';
-            var prazoMeses = parseInt(document.getElementById('decisao-prazo-meses').value || '2', 10);
+            var prazoMeses = parseInt(document.getElementById('decisao-prazo-meses').value || '0', 10);
             var motivoUrgencia = document.getElementById('decisao-motivo-urgencia').value;
             var resultEl = document.getElementById('decisao-compra-result');
             if (!produto) {
@@ -2442,11 +2448,9 @@ async function loadDesejos() {
         }
 
         async function planejarDesejoCompra(id) {
-            showToast('Montando plano de acao para 2 meses...', 'info');
+            showToast('Analisando prioridade financeira do item...', 'info');
             var res = await api('/api/desejos/plano_compra', 'POST', {
                 id: id,
-                prazo_meses: 2,
-                urgencia: 'alta',
                 salvar: true
             });
             if (!res || !res.ok) {

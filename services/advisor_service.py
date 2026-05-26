@@ -283,7 +283,7 @@ class AdvisorService:
         valor = float(valor or 0)
         parcelas = int(parcelas or 1)
         parcelas = max(parcelas, 1)
-        prazo_compra_meses = int(prazo_compra_meses or (2 if str(urgencia or "").lower() in ["alta", "critica", "urgente"] else 0) or 0)
+        prazo_compra_meses = int(prazo_compra_meses or 0)
 
         wishlist = WishlistAdvisorService(self.db)
         tools = FinancialTools(self.db)
@@ -359,7 +359,10 @@ class AdvisorService:
         if plano_acao:
             linhas.append("")
             linhas.append("Plano de acao salvo no desejo:")
-            linhas.append(f"- Prazo alvo: {plano_acao['prazo_compra_meses']} mes(es)")
+            if plano_acao.get("prazo_compra_meses"):
+                linhas.append(f"- Prazo alvo: {plano_acao['prazo_compra_meses']} mes(es)")
+            else:
+                linhas.append("- Prazo alvo: sem prazo fixo; liberar somente quando a base financeira estiver saudavel")
             linhas.append(f"- Forma recomendada: {plano_acao['forma_recomendada']}")
             if plano_acao.get("parcelas_recomendadas"):
                 linhas.append(f"- Parcelamento: {plano_acao['parcelas_recomendadas']}x de {self._moeda(plano_acao.get('valor_parcela_recomendado'))}")
